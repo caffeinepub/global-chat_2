@@ -1,0 +1,32 @@
+{
+  "kind": "spec_vs_diff_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-28T10:43:18.297Z",
+  "summary": "The diff implements useServerState hook with BroadcastChannel integration, countdown timer, startup overlay logic, and ChatPage integration with ShutdownOverlay and StartupOverlay for non-owner users. The core logic appears well-implemented, but the diff is truncated for ChatPage.tsx and the actual ShutdownOverlay.tsx and StartupOverlay.tsx component files are not shown as modified or added, making it impossible to verify their implementation details.",
+  "missing_requirements": [
+    {
+      "id": "REQ-33",
+      "requirement": "ShutdownOverlay.tsx must display: (1) a large '🔴 Server Shut Down' title, (2) the shutdownMessage from localStorage if provided, (3) a live countdown timer formatted as mm:ss that decrements every second. All message input interaction must be completely blocked while the overlay is active.",
+      "reason": "ShutdownOverlay.tsx is not listed as a modified or added file in the diff. Its implementation cannot be verified. The component is imported in ChatPage.tsx but the actual overlay component file is absent from the diff.",
+      "evidence": [
+        "frontend/src/pages/ChatPage.tsx"
+      ]
+    },
+    {
+      "id": "REQ-34",
+      "requirement": "StartupOverlay.tsx must display '🟢 Server Starting Up...' as a full-screen green overlay for exactly 5 seconds before fading out.",
+      "reason": "StartupOverlay.tsx is not listed as a modified or added file in the diff. Its implementation cannot be verified. The component is imported in ChatPage.tsx but the actual overlay component file is absent from the diff.",
+      "evidence": [
+        "frontend/src/pages/ChatPage.tsx"
+      ]
+    }
+  ],
+  "hallucinated_features": [],
+  "confidence": 0.6,
+  "changed_files": [
+    "frontend-file-summaries.txt",
+    "frontend/src/hooks/useServerState.ts",
+    "frontend/src/pages/ChatPage.tsx",
+    "project_state.json"
+  ]
+}

@@ -1,0 +1,369 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 15,
+  "summary": "A Discord-inspired global chat website called \"Global Chat\" with real-time messaging via BroadcastChannel + localStorage, AI chatbot integration (G.AI Chat panel and @G.ai mentions), secret emoji picker (Ctrl+Alt), clear chat (Ctrl+C), OpenAI-powered auto-moderation with 10-minute bans, a moderation ban log/admin panel, user authentication (username + password), logout button, a special verified owner account 'AI.Caffeine' with hardcoded password '2580' and full admin privileges, extended admin commands (ban, mute, unmute, unban, big message broadcast, force text), 25 additional admin commands, and a server shutdown/startup system where the owner can shut down the server for up to 50 minutes (screen goes black for others with a timer, owner sees normal UI with shutdown indicator), and a startup command that shows a green 'starting up' screen for 5 seconds before returning to normal.",
+  "architectural_notes": [
+    "Uses BroadcastChannel API + localStorage (key: globalchat_messages) for real-time cross-tab messaging with no backend",
+    "Caffeine AI SDK (import { generateText } from 'https://cfe.caffeine.build/ai/index.js') used for both G.AI Chat panel and @G.ai mention auto-replies",
+    "Username stored in localStorage; presence/online users simulated via localStorage",
+    "G.AI should use OpenAI ChatGPT API with conversation memory (chat history stored per session)",
+    "Chat moderation: G.AI scans messages for disrespectful content and issues 10-minute bans stored in localStorage",
+    "User accounts use username + password stored in localStorage; 'AI.Caffeine' is hardcoded as the verified owner with exclusive admin panel access",
+    "AI.Caffeine account has a hardcoded password '2580' and must always exist in the system",
+    "Admin-only commands (ban, mute, unmute, unban, broadcast big message, force-text) are exclusive to AI.Caffeine; mute state stored in localStorage under globalchat_mutes",
+    "Server shutdown state stored in localStorage under globalchat_shutdown as { active: boolean, endsAt: timestamp, startedBy: string }; BroadcastChannel used to notify all tabs instantly of shutdown/startup events"
+  ],
+  "known_issues": [
+    "G.AI Chat panel not functioning properly — needs fix and model switch to OpenAI ChatGPT",
+    "Shutdown black screen overlay and green startup screen with countdown timer not appearing for non-admin users"
+  ],
+  "isFixRequest": true,
+  "existing_features": [
+    {
+      "id": "feature-create-a-landing-name-entry-page-with-a-centered-card-ui-showing-the-app-name-global-chat-with-a-globe-icon-an-enter-your-name-input-field-and-a-continue-button-store-the-entered-username-in-localstorage-and-navigate-to-the-main-chat-page-on-submit",
+      "title": "Create a Landing / Name Entry page with a centered card UI showing the app name 'Global Chat' with a globe icon, an 'Enter your name' input field, and a 'Continue' button. Store the entered username in localStorage and navigate to the main chat page on submit.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-the-main-chat-page-with-a-discord-style-layout-a-left-sidebar-showing-global-channel-online-user-count-and-a-list-of-recent-online-users-simulated-via-localstorage-a-top-bar-with-the-app-name-globe-icon-and-online-count-badge-a-scrollable-chat-area-displaying-messages-with-username-colored-circle-avatar-first-letter-timestamp-and-message-text-and-a-message-input-bar-at-the-bottom-with-a-text-input-and-send-button",
+      "title": "Create the main chat page with a Discord-style layout: a left sidebar showing '# global' channel, online user count, and a list of recent online users (simulated via localStorage); a top bar with the app name, globe icon, and online count badge; a scrollable chat area displaying messages with username, colored-circle avatar (first letter), timestamp, and message text; and a message input bar at the bottom with a text input and send button.",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-real-time-cross-tab-messaging-using-the-broadcastchannel-api-combined-with-localstorage-persistence-store-messages-in-localstorage-under-the-key-globalchat-messages-as-a-shared-array-all-open-tabs-windows-on-the-same-browser-must-receive-and-display-new-messages-instantly-via-broadcastchannel",
+      "title": "Implement real-time cross-tab messaging using the BroadcastChannel API combined with localStorage persistence. Store messages in localStorage under the key `globalchat_messages` as a shared array. All open tabs/windows on the same browser must receive and display new messages instantly via BroadcastChannel.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-pre-populate-the-chat-with-5-8-realistic-sample-messages-from-different-fake-users-on-first-load-only-when-localstorage-is-empty-no-existing-messages-stored",
+      "title": "Pre-populate the chat with 5–8 realistic sample messages from different fake users on first load, only when localStorage is empty (no existing messages stored).",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-floating-g-ai-chat-button-with-a-robot-icon-in-the-bottom-right-corner-clicking-it-opens-a-side-panel-or-modal-with-a-private-ai-chat-interface-use-the-caffeine-ai-sdk-import-generatetext-from-https-cfe-caffeine-build-ai-index-js-with-model-claude-sonnet-4-5-to-generate-responses-this-is-a-private-chat-between-the-current-user-and-the-ai-only",
+      "title": "Add a floating 'G.AI Chat' button with a robot icon in the bottom-right corner. Clicking it opens a side panel or modal with a private AI chat interface. Use the Caffeine AI SDK (`import { generateText } from 'https://cfe.caffeine.build/ai/index.js'`) with model `claude-sonnet-4-5` to generate responses. This is a private chat between the current user and the AI only.",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-detect-when-any-global-chat-message-contains-g-ai-followed-by-text-e-g-g-ai-what-is-1-1-when-detected-automatically-generate-an-ai-response-using-the-caffeine-ai-sdk-and-post-it-as-a-bot-message-from-g-ai-in-the-global-chat-bot-messages-must-have-distinct-styling-a-different-background-color-and-a-bot-badge",
+      "title": "Detect when any global chat message contains `@G.ai` followed by text (e.g. `@G.ai what is 1+1?`). When detected, automatically generate an AI response using the Caffeine AI SDK and post it as a bot message from 'G.AI 🤖' in the global chat. Bot messages must have distinct styling: a different background color and a bot badge.",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-secret-emoji-picker-panel-that-opens-when-the-user-presses-ctrl-alt-simultaneously-the-panel-displays-a-grid-of-fun-rare-emojis-clicking-an-emoji-inserts-it-into-the-message-input-field-the-panel-closes-when-the-user-presses-escape-or-clicks-outside-of-it",
+      "title": "Implement a secret emoji picker panel that opens when the user presses Ctrl+Alt simultaneously. The panel displays a grid of fun/rare emojis. Clicking an emoji inserts it into the message input field. The panel closes when the user presses Escape or clicks outside of it.",
+      "reqIds": [
+        "REQ-7"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-ctrl-c-shortcut-when-the-user-is-focused-in-the-chat-area-and-has-no-text-selected-that-shows-a-small-confirmation-toast-clear-your-chat-view-press-c-again-to-confirm-on-confirmation-pressing-c-again-clear-all-messages-from-localstorage-and-the-local-ui-this-action-only-affects-the-current-user-s-view-and-does-not-delete-messages-for-other-users-or-tabs",
+      "title": "Implement a Ctrl+C shortcut (when the user is focused in the chat area and has no text selected) that shows a small confirmation toast: 'Clear your chat view? Press C again to confirm'. On confirmation (pressing C again), clear all messages from localStorage and the local UI. This action only affects the current user's view and does not delete messages for other users or tabs.",
+      "reqIds": [
+        "REQ-8"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-a-discord-inspired-dark-visual-theme-throughout-the-app-with-the-following-exact-color-values-background-1e1f22-sidebar-2b2d31-chat-area-313338-input-383a40-accent-indigo-purple-5865f2-use-inter-or-system-ui-as-the-font-include-message-hover-highlight-smooth-slide-in-animations-for-new-messages-and-ensure-the-layout-is-fully-mobile-responsive",
+      "title": "Apply a Discord-inspired dark visual theme throughout the app with the following exact color values: background #1e1f22, sidebar #2b2d31, chat area #313338, input #383a40, accent indigo/purple #5865f2. Use Inter or system-ui as the font. Include message hover highlight, smooth slide-in animations for new messages, and ensure the layout is fully mobile responsive.",
+      "reqIds": [
+        "REQ-9"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-replace-the-caffeine-ai-sdk-in-both-the-private-g-ai-chat-panel-aichatpanel-tsx-and-the-g-ai-mention-detector-hook-useaimentiondetector-ts-with-direct-openai-chatgpt-api-calls-using-the-gpt-4o-mini-model-or-gpt-3-5-turbo-as-fallback-the-ai-must-function-correctly-and-return-responses-in-both-contexts-use-a-user-configurable-api-key-stored-in-localstorage-under-the-key-globalchat-openai-key-if-no-key-is-set-show-a-prompt-asking-the-user-to-enter-their-openai-api-key-before-the-chat-activates",
+      "title": "Replace the Caffeine AI SDK in both the private G.AI Chat panel (AIChatPanel.tsx) and the @G.ai mention detector hook (useAIMentionDetector.ts) with direct OpenAI ChatGPT API calls using the `gpt-4o-mini` model (or `gpt-3.5-turbo` as fallback). The AI must function correctly and return responses in both contexts. Use a user-configurable API key stored in localStorage under the key `globalchat_openai_key`. If no key is set, show a prompt asking the user to enter their OpenAI API key before the chat activates.",
+      "reqIds": [
+        "REQ-10"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-full-conversation-memory-to-the-private-g-ai-chat-panel-maintain-the-entire-message-history-of-the-current-session-and-pass-it-as-the-messages-array-to-every-openai-api-call-so-the-ai-has-context-of-the-full-conversation-the-history-should-reset-when-the-panel-is-closed-and-reopened-session-scoped-not-persisted-to-localstorage",
+      "title": "Add full conversation memory to the private G.AI Chat panel. Maintain the entire message history of the current session and pass it as the `messages` array to every OpenAI API call, so the AI has context of the full conversation. The history should reset when the panel is closed and reopened (session-scoped, not persisted to localStorage).",
+      "reqIds": [
+        "REQ-11"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-an-ai-powered-auto-moderation-system-that-scans-every-new-global-chat-message-for-disrespectful-or-abusive-content-after-each-message-is-posted-send-it-to-openai-chatgpt-with-a-moderation-prompt-asking-whether-the-message-is-disrespectful-profanity-slurs-harassment-hate-speech-if-the-ai-flags-it-automatically-ban-the-offending-username-for-10-minutes-store-the-banned-username-and-ban-expiry-timestamp-in-localstorage-under-the-key-globalchat-bans-as-a-json-object-while-banned-any-attempt-by-that-username-to-send-a-message-must-be-blocked-and-show-an-inline-warning-you-are-banned-for-x-minutes-due-to-a-violation-bot-messages-from-g-ai-must-be-excluded-from-moderation-scanning",
+      "title": "Implement an AI-powered auto-moderation system that scans every new global chat message for disrespectful or abusive content. After each message is posted, send it to OpenAI ChatGPT with a moderation prompt asking whether the message is disrespectful (profanity, slurs, harassment, hate speech). If the AI flags it, automatically 'ban' the offending username for 10 minutes: store the banned username and ban expiry timestamp in localStorage under the key `globalchat_bans` as a JSON object. While banned, any attempt by that username to send a message must be blocked and show an inline warning: 'You are banned for X minutes due to a violation.' Bot messages from G.AI 🤖 must be excluded from moderation scanning.",
+      "reqIds": [
+        "REQ-12"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-replace-the-current-name-only-landing-page-with-a-full-authentication-flow-users-must-be-able-to-create-a-new-account-by-entering-a-username-and-password-or-log-in-with-existing-credentials-store-hashed-or-at-minimum-encoded-credentials-in-localstorage-under-the-key-globalchat-users-as-a-json-object-keyed-by-username-on-successful-login-store-the-active-session-username-isauthenticated-flag-in-localstorage-under-globalchat-session-validate-credentials-on-login-and-show-an-appropriate-error-message-if-they-don-t-match-the-ui-should-have-two-modes-log-in-and-create-account-toggleable-from-the-same-page",
+      "title": "Replace the current name-only landing page with a full authentication flow. Users must be able to create a new account by entering a username and password, or log in with existing credentials. Store hashed (or at minimum encoded) credentials in localStorage under the key `globalchat_users` as a JSON object keyed by username. On successful login, store the active session (username + isAuthenticated flag) in localStorage under `globalchat_session`. Validate credentials on login and show an appropriate error message if they don't match. The UI should have two modes: 'Log In' and 'Create Account', toggleable from the same page.",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-logout-button-visible-in-the-chat-ui-e-g-in-the-topbar-or-sidebar-clicking-it-clears-the-active-session-from-localstorage-globalchat-session-and-redirects-the-user-back-to-the-login-landing-page-the-user-must-re-authenticate-to-access-the-chat-again",
+      "title": "Add a Logout button visible in the chat UI (e.g., in the TopBar or Sidebar). Clicking it clears the active session from localStorage (`globalchat_session`) and redirects the user back to the login/landing page. The user must re-authenticate to access the chat again.",
+      "reqIds": [
+        "REQ-14"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-mark-the-username-ai-caffeine-as-a-verified-owner-throughout-the-app-wherever-this-username-appears-chat-messages-sidebar-user-list-admin-panel-display-a-special-verified-badge-e-g-a-gold-crown-or-shield-icon-with-a-verified-owner-tooltip-this-badge-must-be-visually-distinct-from-regular-users-and-bot-badges",
+      "title": "Mark the username `AI.Caffeine` as a verified owner throughout the app. Wherever this username appears (chat messages, sidebar user list, admin panel), display a special verified badge (e.g., a gold crown or shield icon with a 'Verified Owner' tooltip). This badge must be visually distinct from regular users and bot badges.",
+      "reqIds": [
+        "REQ-15"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-an-admin-panel-page-or-slide-out-drawer-exclusively-accessible-to-the-logged-in-user-ai-caffeine-the-admin-panel-must-display-1-a-full-moderation-ban-log-listing-all-currently-banned-usernames-their-ban-reasons-and-remaining-ban-time-read-from-globalchat-bans-in-localstorage-2-an-option-to-manually-unban-any-user-3-a-log-of-recent-moderation-actions-flagged-messages-with-username-message-text-and-timestamp-a-button-or-icon-to-open-the-admin-panel-should-be-visible-only-when-the-current-session-username-is-ai-caffeine-all-other-users-must-not-see-or-be-able-to-access-the-admin-panel",
+      "title": "Create an Admin Panel page or slide-out drawer exclusively accessible to the logged-in user `AI.Caffeine`. The admin panel must display: (1) a full moderation ban log listing all currently banned usernames, their ban reasons, and remaining ban time (read from `globalchat_bans` in localStorage); (2) an option to manually unban any user; (3) a log of recent moderation actions (flagged messages with username, message text, and timestamp). A button or icon to open the admin panel should be visible only when the current session username is `AI.Caffeine`. All other users must not see or be able to access the admin panel.",
+      "reqIds": [
+        "REQ-16"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-in-frontend-src-lib-auth-ts-hardcode-the-ai-caffeine-account-so-that-it-always-exists-in-globalchat-users-localstorage-with-the-password-2580-obfuscated-encoded-using-the-same-scheme-as-other-stored-passwords-on-every-app-initialization-e-g-when-the-auth-module-loads-ensure-this-account-is-seeded-into-globalchat-users-if-it-does-not-already-exist-and-that-its-stored-credential-always-matches-the-encoding-of-2580-this-must-not-overwrite-other-user-accounts",
+      "title": "In `frontend/src/lib/auth.ts`, hardcode the `AI.Caffeine` account so that it always exists in `globalchat_users` localStorage with the password `2580` (obfuscated/encoded using the same scheme as other stored passwords). On every app initialization (e.g., when the auth module loads), ensure this account is seeded into `globalchat_users` if it does not already exist, and that its stored credential always matches the encoding of `2580`. This must not overwrite other user accounts.",
+      "reqIds": [
+        "REQ-17"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-extend-the-admin-commands-system-in-the-admin-panel-adminpanel-tsx-with-the-following-moderation-commands-exclusively-available-to-the-logged-in-user-ai-caffeine-1-ban-manually-ban-any-username-for-a-configurable-duration-default-10-minutes-storing-the-ban-in-globalchat-bans-localstorage-2-unban-manually-remove-a-ban-for-any-username-from-globalchat-bans-3-mute-silence-a-user-so-their-messages-are-blocked-client-side-storing-muted-usernames-and-expiry-timestamps-in-localstorage-under-globalchat-mutes-as-a-json-object-4-unmute-remove-a-mute-for-any-username-from-globalchat-mutes-each-command-must-accept-a-username-input-and-show-a-confirmation-or-success-error-feedback-message-inline",
+      "title": "Extend the admin commands system in the Admin Panel (AdminPanel.tsx) with the following moderation commands, exclusively available to the logged-in user `AI.Caffeine`: (1) **Ban** — manually ban any username for a configurable duration (default 10 minutes), storing the ban in `globalchat_bans` localStorage; (2) **Unban** — manually remove a ban for any username from `globalchat_bans`; (3) **Mute** — silence a user so their messages are blocked client-side, storing muted usernames and expiry timestamps in localStorage under `globalchat_mutes` as a JSON object; (4) **Unmute** — remove a mute for any username from `globalchat_mutes`. Each command must accept a username input and show a confirmation or success/error feedback message inline.",
+      "reqIds": [
+        "REQ-18"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-messageinputbar-tsx-and-the-message-sending-flow-in-chatpage-tsx-to-enforce-mute-status-on-every-send-attempt-check-globalchat-mutes-in-localstorage-for-the-current-user-s-username-if-a-valid-non-expired-mute-entry-exists-block-the-message-and-display-an-inline-warning-you-are-muted-for-x-minutes-expired-mute-entries-must-be-pruned-automatically-bot-messages-from-g-ai-must-be-excluded-from-mute-checking",
+      "title": "Update `MessageInputBar.tsx` and the message sending flow in `ChatPage.tsx` to enforce mute status. On every send attempt, check `globalchat_mutes` in localStorage for the current user's username. If a valid (non-expired) mute entry exists, block the message and display an inline warning: 'You are muted for X minutes.' Expired mute entries must be pruned automatically. Bot messages from `G.AI 🤖` must be excluded from mute checking.",
+      "reqIds": [
+        "REQ-19"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-big-message-broadcast-command-to-the-admin-panel-exclusively-for-ai-caffeine-the-admin-enters-a-message-text-and-clicks-broadcast-big-message-this-posts-a-server-wide-announcement-that-appears-in-the-global-chat-for-all-users-via-the-existing-broadcastchannel-localstorage-message-system-as-a-visually-distinct-full-width-banner-style-message-with-large-bold-text-a-megaphone-icon-and-a-special-background-color-e-g-deep-gold-or-bright-indigo-the-message-must-be-attributed-to-ai-caffeine-with-the-verified-owner-badge",
+      "title": "Add a 'Big Message' broadcast command to the Admin Panel, exclusively for `AI.Caffeine`. The admin enters a message text and clicks 'Broadcast Big Message'. This posts a server-wide announcement that appears in the global chat for all users (via the existing BroadcastChannel + localStorage message system) as a visually distinct full-width banner-style message with large bold text, a megaphone icon (📢), and a special background color (e.g., deep gold or bright indigo). The message must be attributed to `AI.Caffeine` with the verified owner badge.",
+      "reqIds": [
+        "REQ-20"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-force-text-command-to-the-admin-panel-exclusively-for-ai-caffeine-the-admin-enters-a-target-username-and-a-message-text-then-clicks-force-send-this-posts-a-message-in-the-global-chat-attributed-to-the-target-username-as-if-they-typed-it-via-the-existing-broadcastchannel-localstorage-message-system-the-forced-message-must-display-a-subtle-forced-indicator-visible-only-to-ai-caffeine-e-g-a-small-ghost-icon-or-italic-style-so-the-admin-can-distinguish-forced-messages-but-it-must-appear-as-a-normal-message-to-all-other-users",
+      "title": "Add a 'Force Text' command to the Admin Panel, exclusively for `AI.Caffeine`. The admin enters a target username and a message text, then clicks 'Force Send'. This posts a message in the global chat attributed to the target username (as if they typed it), via the existing BroadcastChannel + localStorage message system. The forced message must display a subtle 'forced' indicator visible only to `AI.Caffeine` (e.g., a small ghost icon 👻 or italic style) so the admin can distinguish forced messages, but it must appear as a normal message to all other users.",
+      "reqIds": [
+        "REQ-21"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-chatmessage-typescript-interface-in-frontend-src-types-chat-ts-to-add-two-new-optional-fields-isbigmessage-boolean-for-server-wide-broadcast-announcements-and-isforced-boolean-for-force-sent-messages-attributed-to-another-user-update-chatarea-tsx-to-render-big-messages-as-full-width-banners-with-large-bold-text-and-a-icon-and-to-show-the-ghost-indicator-on-forced-messages-only-when-the-current-session-username-is-ai-caffeine",
+      "title": "Update the `ChatMessage` TypeScript interface in `frontend/src/types/chat.ts` to add two new optional fields: `isBigMessage?: boolean` (for server-wide broadcast announcements) and `isForced?: boolean` (for force-sent messages attributed to another user). Update `ChatArea.tsx` to render big messages as full-width banners with large bold text and a 📢 icon, and to show the 👻 ghost indicator on forced messages only when the current session username is `AI.Caffeine`.",
+      "reqIds": [
+        "REQ-22"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-a-server-shutdown-startup-state-system-store-the-shutdown-state-in-localstorage-under-globalchat-server-state-as-a-json-object-with-fields-isshutdown-boolean-shutdownuntil-number-null-unix-timestamp-shutdownby-string-shutdownmessage-string-broadcast-state-changes-across-all-tabs-via-broadcastchannel-channel-name-globalchat-server-control-when-isshutdown-is-true-and-the-current-time-is-before-shutdownuntil-the-server-is-considered-shut-down-when-the-timer-expires-naturally-automatically-restore-the-server-to-running-state",
+      "title": "Create a server shutdown/startup state system. Store the shutdown state in localStorage under `globalchat_server_state` as a JSON object with fields: `isShutdown: boolean`, `shutdownUntil: number | null` (Unix timestamp), `shutdownBy: string`, `shutdownMessage: string`. Broadcast state changes across all tabs via BroadcastChannel (channel name `globalchat_server_control`). When `isShutdown` is true and the current time is before `shutdownUntil`, the server is considered shut down. When the timer expires naturally, automatically restore the server to running state.",
+      "reqIds": [
+        "REQ-23"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-shutdown-server-command-to-the-admin-panel-exclusively-for-ai-caffeine-the-admin-enters-a-duration-in-mm-ss-format-e-g-10-00-an-optional-shutdown-message-and-clicks-shutdown-server-this-writes-the-shutdown-state-to-localstorage-globalchat-server-state-and-broadcasts-via-globalchat-server-control-broadcastchannel-duration-must-be-capped-at-50-minutes-show-inline-success-error-feedback",
+      "title": "Add a 'Shutdown Server' command to the Admin Panel exclusively for `AI.Caffeine`. The admin enters a duration (in mm:ss format, e.g. '10:00'), an optional shutdown message, and clicks 'Shutdown Server'. This writes the shutdown state to localStorage `globalchat_server_state` and broadcasts via `globalchat_server_control` BroadcastChannel. Duration must be capped at 50 minutes. Show inline success/error feedback.",
+      "reqIds": [
+        "REQ-24"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-start-up-server-command-to-the-admin-panel-for-ai-caffeine-that-is-visible-only-when-the-server-is-currently-shut-down-clicking-it-sets-isshutdown-false-in-globalchat-server-state-and-broadcasts-the-startup-event-via-globalchat-server-control-on-startup-trigger-the-5-second-green-startup-screen-for-all-non-owner-tabs-show-inline-success-feedback",
+      "title": "Add a 'Start Up Server' command to the Admin Panel for `AI.Caffeine` that is visible only when the server is currently shut down. Clicking it sets `isShutdown: false` in `globalchat_server_state` and broadcasts the startup event via `globalchat_server_control`. On startup, trigger the 5-second green startup screen for all non-owner tabs. Show inline success feedback.",
+      "reqIds": [
+        "REQ-25"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-the-shutdown-screen-overlay-for-non-owner-users-in-chatpage-tsx-when-the-server-state-is-shut-down-render-a-full-screen-black-overlay-over-the-entire-chat-ui-the-overlay-must-display-1-a-large-server-shut-down-title-2-the-admin-s-shutdown-message-if-provided-3-a-live-countdown-timer-showing-time-remaining-until-the-server-restarts-formatted-as-mm-ss-updating-every-second-all-message-input-interaction-must-be-blocked-while-the-overlay-is-active-bot-messages-and-the-ai-caffeine-session-must-be-excluded-from-this-overlay",
+      "title": "Implement the shutdown screen overlay for non-owner users in `ChatPage.tsx`. When the server state is shut down, render a full-screen black overlay over the entire chat UI. The overlay must display: (1) a large '🔴 Server Shut Down' title, (2) the admin's shutdown message if provided, (3) a live countdown timer showing time remaining until the server restarts (formatted as mm:ss, updating every second). All message input interaction must be blocked while the overlay is active. Bot messages and the `AI.Caffeine` session must be excluded from this overlay.",
+      "reqIds": [
+        "REQ-26"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-the-owner-shutdown-indicator-for-ai-caffeine-in-chatpage-tsx-when-the-server-is-shut-down-and-the-current-user-is-ai-caffeine-show-a-visible-but-non-blocking-banner-or-badge-at-the-top-of-the-chat-area-saying-server-is-shut-down-countdown-remaining-the-chat-ui-must-remain-fully-functional-no-black-overlay-the-banner-should-include-a-quick-start-up-now-button-that-triggers-the-startup-flow",
+      "title": "Implement the owner shutdown indicator for `AI.Caffeine` in `ChatPage.tsx`. When the server is shut down and the current user is `AI.Caffeine`, show a visible but non-blocking banner or badge at the top of the chat area saying '⚠️ Server is shut down — [countdown] remaining'. The chat UI must remain fully functional (no black overlay). The banner should include a quick 'Start Up Now' button that triggers the startup flow.",
+      "reqIds": [
+        "REQ-27"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-the-startup-transition-screen-for-all-non-owner-users-when-the-server-transitions-from-shutdown-to-running-either-by-admin-command-or-timer-expiry-show-a-full-screen-green-overlay-with-the-text-server-starting-up-for-exactly-5-seconds-after-5-seconds-the-overlay-fades-out-and-the-normal-chat-ui-is-restored-this-transition-should-apply-to-all-currently-open-tabs-for-non-owner-users",
+      "title": "Implement the startup transition screen for all non-owner users. When the server transitions from shutdown to running (either by admin command or timer expiry), show a full-screen green overlay with the text '🟢 Server Starting Up...' for exactly 5 seconds. After 5 seconds, the overlay fades out and the normal chat UI is restored. This transition should apply to all currently open tabs for non-owner users.",
+      "reqIds": [
+        "REQ-28"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-25-additional-admin-commands-to-adminpanel-tsx-organized-in-a-new-more-commands-tab-or-section-exclusively-accessible-to-ai-caffeine-each-command-must-accept-relevant-inputs-and-show-inline-success-error-feedback-the-25-commands-are-1-rename-user-change-a-user-s-display-name-in-chat-history-2-clear-all-chat-wipe-all-messages-from-globalchat-messages-and-broadcast-the-clear-to-all-tabs-3-pin-message-mark-a-message-by-id-as-pinned-storing-pinned-message-ids-in-globalchat-pinned-localstorage-4-unpin-message-remove-a-message-from-the-pinned-list-5-announce-role-post-a-bot-message-announcing-a-custom-role-title-for-a-user-e-g-alex-is-now-a-moderator-6-change-theme-broadcast-a-theme-override-dark-light-red-blue-to-all-tabs-via-broadcastchannel-stored-in-globalchat-theme-7-slow-mode-set-a-per-user-message-cooldown-in-seconds-e-g-30s-broadcast-and-stored-in-globalchat-slowmode-blocking-rapid-sends-for-all-non-owner-users-8-disable-slow-mode-remove-the-slow-mode-restriction-9-lock-chat-prevent-all-non-owner-users-from-sending-any-messages-stored-in-globalchat-locked-broadcast-to-all-tabs-10-unlock-chat-remove-the-lock-11-mass-mute-mute-all-currently-known-users-in-globalchat-users-for-a-configurable-duration-12-mass-unmute-unmute-all-users-13-fake-join-post-a-system-message-like-username-joined-the-server-14-fake-leave-post-a-system-message-like-username-left-the-server-15-set-motd-set-a-message-of-the-day-stored-in-globalchat-motd-and-displayed-as-a-banner-at-the-top-of-the-chat-area-for-all-users-16-clear-motd-remove-the-motd-banner-17-highlight-user-temporarily-add-a-glowing-colored-border-to-all-messages-from-a-specific-username-for-5-minutes-stored-in-globalchat-highlights-18-shadowban-add-a-username-to-globalchat-shadowbanned-their-messages-are-stored-locally-but-never-broadcast-to-other-tabs-19-unshadowban-remove-a-username-from-globalchat-shadowbanned-20-rename-channel-change-the-channel-name-displayed-in-sidebar-and-topbar-stored-in-globalchat-channel-name-21-set-user-limit-set-maximum-concurrent-online-users-allowed-stored-in-globalchat-user-limit-22-reset-user-limit-remove-the-user-limit-23-toggle-profanity-filter-enable-or-disable-a-client-side-word-filter-that-replaces-banned-words-with-asterisks-stored-in-globalchat-profanity-filter-24-impersonate-bot-post-a-message-as-g-ai-with-bot-styling-without-triggering-ai-generation-25-export-chat-log-download-all-current-messages-from-globalchat-messages-as-a-json-file-via-a-browser-download-trigger",
+      "title": "Add 25 additional admin commands to `AdminPanel.tsx`, organized in a new 'More Commands' tab or section, exclusively accessible to `AI.Caffeine`. Each command must accept relevant inputs and show inline success/error feedback. The 25 commands are: (1) **Rename User** — change a user's display name in chat history; (2) **Clear All Chat** — wipe all messages from `globalchat_messages` and broadcast the clear to all tabs; (3) **Pin Message** — mark a message by ID as pinned, storing pinned message IDs in `globalchat_pinned` localStorage; (4) **Unpin Message** — remove a message from the pinned list; (5) **Announce Role** — post a bot message announcing a custom role title for a user (e.g. 'Alex is now a Moderator'); (6) **Change Theme** — broadcast a theme override (dark/light/red/blue) to all tabs via BroadcastChannel, stored in `globalchat_theme`; (7) **Slow Mode** — set a per-user message cooldown (in seconds, e.g. 30s) broadcast and stored in `globalchat_slowmode`, blocking rapid sends for all non-owner users; (8) **Disable Slow Mode** — remove the slow mode restriction; (9) **Lock Chat** — prevent all non-owner users from sending any messages (stored in `globalchat_locked`), broadcast to all tabs; (10) **Unlock Chat** — remove the lock; (11) **Mass Mute** — mute all currently known users in `globalchat_users` for a configurable duration; (12) **Mass Unmute** — unmute all users; (13) **Fake Join** — post a system message like '👋 [username] joined the server'; (14) **Fake Leave** — post a system message like '👋 [username] left the server'; (15) **Set MOTD** — set a Message of the Day stored in `globalchat_motd` and displayed as a banner at the top of the chat area for all users; (16) **Clear MOTD** — remove the MOTD banner; (17) **Highlight User** — temporarily add a glowing colored border to all messages from a specific username for 5 minutes (stored in `globalchat_highlights`); (18) **Shadowban** — add a username to `globalchat_shadowbanned`; their messages are stored locally but never broadcast to other tabs; (19) **Unshadowban** — remove a username from `globalchat_shadowbanned`; (20) **Rename Channel** — change the channel name displayed in sidebar and topbar (stored in `globalchat_channel_name`); (21) **Set User Limit** — set maximum concurrent online users allowed (stored in `globalchat_user_limit`); (22) **Reset User Limit** — remove the user limit; (23) **Toggle Profanity Filter** — enable or disable a client-side word filter that replaces banned words with asterisks (stored in `globalchat_profanity_filter`); (24) **Impersonate Bot** — post a message as `G.AI 🤖` with bot styling without triggering AI generation; (25) **Export Chat Log** — download all current messages from `globalchat_messages` as a `.json` file via a browser download trigger.",
+      "reqIds": [
+        "REQ-29"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-messageinputbar-tsx-and-the-message-sending-flow-in-chatpage-tsx-to-enforce-the-new-server-side-restrictions-1-block-sending-when-the-server-is-shut-down-non-owner-users-only-2-block-sending-when-chat-is-locked-globalchat-locked-3-enforce-slow-mode-cooldown-from-globalchat-slowmode-4-enforce-shadowban-by-sending-the-message-locally-but-skipping-the-broadcastchannel-publish-each-blocked-state-must-show-a-distinct-inline-warning-message-to-the-user",
+      "title": "Update `MessageInputBar.tsx` and the message-sending flow in `ChatPage.tsx` to enforce the new server-side restrictions: (1) block sending when the server is shut down (non-owner users only); (2) block sending when chat is locked (`globalchat_locked`); (3) enforce slow mode cooldown from `globalchat_slowmode`; (4) enforce shadowban by sending the message locally but skipping the BroadcastChannel publish. Each blocked state must show a distinct inline warning message to the user.",
+      "reqIds": [
+        "REQ-30"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-chatarea-tsx-to-render-new-message-types-and-decorations-1-display-pinned-messages-with-a-pin-indicator-at-the-top-of-the-chat-area-a-sticky-pinned-message-bar-showing-the-most-recently-pinned-message-from-globalchat-pinned-2-apply-a-glowing-colored-border-to-messages-from-highlighted-users-reading-from-globalchat-highlights-auto-expiring-after-the-stored-duration-3-render-system-messages-fake-join-leave-announce-role-in-a-distinct-italicized-system-message-style-with-a-different-background-4-display-the-motd-banner-from-globalchat-motd-as-a-dismissible-top-banner-in-the-chat-area",
+      "title": "Update `ChatArea.tsx` to render new message types and decorations: (1) display pinned messages with a 📌 pin indicator at the top of the chat area (a sticky pinned message bar showing the most recently pinned message from `globalchat_pinned`); (2) apply a glowing colored border to messages from highlighted users (reading from `globalchat_highlights`, auto-expiring after the stored duration); (3) render system messages (Fake Join/Leave, Announce Role) in a distinct italicized system-message style with a different background; (4) display the MOTD banner from `globalchat_motd` as a dismissible top banner in the chat area.",
+      "reqIds": [
+        "REQ-31"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-chatpage-tsx-and-relevant-hooks-to-listen-on-the-globalchat-server-control-broadcastchannel-for-all-real-time-server-state-changes-shutdown-startup-theme-change-lock-unlock-slow-mode-motd-channel-rename-highlights-shadowban-list-and-apply-them-immediately-to-local-react-state-without-requiring-a-page-reload",
+      "title": "Update `ChatPage.tsx` and relevant hooks to listen on the `globalchat_server_control` BroadcastChannel for all real-time server state changes (shutdown, startup, theme change, lock/unlock, slow mode, MOTD, channel rename, highlights, shadowban list) and apply them immediately to local React state without requiring a page reload.",
+      "reqIds": [
+        "REQ-32"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-shutdownoverlay-tsx-and-its-integration-in-chatpage-tsx-so-that-when-the-server-is-shut-down-globalchat-server-state-has-isshutdown-true-and-current-time-is-before-shutdownuntil-non-owner-users-any-username-that-is-not-ai-caffeine-see-a-full-screen-black-overlay-rendered-on-top-of-the-entire-chat-ui-the-overlay-must-display-1-a-large-server-shut-down-title-2-the-shutdownmessage-from-localstorage-if-provided-3-a-live-countdown-timer-formatted-as-mm-ss-that-decrements-every-second-showing-time-remaining-until-shutdownuntil-all-message-input-interaction-must-be-completely-blocked-while-the-overlay-is-active",
+      "title": "Fix `ShutdownOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server is shut down (`globalchat_server_state` has `isShutdown: true` and current time is before `shutdownUntil`), non-owner users (any username that is not `AI.Caffeine`) see a full-screen black overlay rendered on top of the entire chat UI. The overlay must display: (1) a large '🔴 Server Shut Down' title, (2) the `shutdownMessage` from localStorage if provided, (3) a live countdown timer formatted as mm:ss that decrements every second showing time remaining until `shutdownUntil`. All message input interaction must be completely blocked while the overlay is active.",
+      "reqIds": [
+        "REQ-33"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-startupoverlay-tsx-and-its-integration-in-chatpage-tsx-so-that-when-the-server-transitions-from-shutdown-to-running-either-via-the-start-up-server-admin-command-or-natural-timer-expiry-all-non-owner-users-ai-caffeine-excluded-immediately-see-a-full-screen-green-overlay-displaying-server-starting-up-for-exactly-5-seconds-after-5-seconds-the-overlay-fades-out-and-the-normal-chat-ui-is-fully-restored-this-must-work-across-all-currently-open-browser-tabs-for-non-owner-users",
+      "title": "Fix `StartupOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server transitions from shutdown to running (either via the 'Start Up Server' admin command or natural timer expiry), all non-owner users (`AI.Caffeine` excluded) immediately see a full-screen green overlay displaying '🟢 Server Starting Up...' for exactly 5 seconds. After 5 seconds the overlay fades out and the normal chat UI is fully restored. This must work across all currently open browser tabs for non-owner users.",
+      "reqIds": [
+        "REQ-34"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-and-fix-the-useserverstate-hook-and-chatpage-tsx-to-ensure-the-server-state-is-correctly-read-from-globalchat-server-state-localstorage-on-initial-page-load-and-kept-in-sync-via-the-globalchat-server-control-broadcastchannel-specifically-1-on-component-mount-read-the-current-server-state-from-localstorage-and-immediately-apply-the-shutdown-overlay-if-isshutdown-is-true-and-date-now-shutdownuntil-2-subscribe-to-the-broadcastchannel-for-real-time-state-changes-and-update-react-state-accordingly-3-ensure-the-shutdown-startup-overlay-visibility-is-derived-from-react-state-not-just-localstorage-reads-so-react-re-renders-correctly-when-state-changes",
+      "title": "Audit and fix the `useServerState` hook and `ChatPage.tsx` to ensure the server state is correctly read from `globalchat_server_state` localStorage on initial page load and kept in sync via the `globalchat_server_control` BroadcastChannel. Specifically: (1) on component mount, read the current server state from localStorage and immediately apply the shutdown overlay if `isShutdown` is true and `Date.now() < shutdownUntil`; (2) subscribe to the BroadcastChannel for real-time state changes and update React state accordingly; (3) ensure the shutdown/startup overlay visibility is derived from React state (not just localStorage reads) so React re-renders correctly when state changes.",
+      "reqIds": [
+        "REQ-35"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Fix G.AI and switch AI model to OpenAI ChatGPT with conversation memory/history",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "G.AI scans global chat for disrespectful messages and auto-bans offending users for 10 minutes",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Add user authentication: require username + password to create account and log in; store credentials in localStorage",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Add a logout button that clears the current session and returns user to the login/landing page",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Create a visible ban log and admin panel to track moderation actions; grant full admin access exclusively to the verified owner account 'AI.Caffeine'",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-6",
+      "summary": "Mark username 'AI.Caffeine' as verified owner with a special badge and exclusive admin panel access",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Hardcode the AI.Caffeine account with password '2580' so it always exists with that credential",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Add extended admin commands for AI.Caffeine: manual ban, mute, unmute, unban users; fun/troll commands like server-wide big message broadcast, force other users to send a message they didn't type",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Add 25 more admin commands of AI assistant's choice to the admin panel, exclusively for AI.Caffeine",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "Add server shutdown/startup commands: owner can shut down server for a configurable duration (max 50 min); during shutdown, non-owners see a black screen with a countdown timer and cannot send messages; owner sees normal UI with a 'server shut down' indicator and an option to start up early; on startup, all users see a green 'Starting up...' screen for 5 seconds before returning to normal",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "Global Chat",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}

@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Discord-inspired dark theme */
+    --background: 0.155 0.004 264;
+    --foreground: 0.92 0.008 264;
+    --card: 0.19 0.006 264;
+    --card-foreground: 0.92 0.008 264;
+    --popover: 0.22 0.008 264;
+    --popover-foreground: 0.92 0.008 264;
+    --primary: 0.58 0.22 264;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.22 0.008 264;
+    --secondary-foreground: 0.92 0.008 264;
+    --muted: 0.22 0.008 264;
+    --muted-foreground: 0.55 0.01 264;
+    --accent: 0.58 0.22 264;
+    --accent-foreground: 1 0 0;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.28 0.01 264;
+    --input: 0.24 0.008 264;
+    --ring: 0.58 0.22 264;
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.398 0.07 227.392;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.769 0.188 70.08;
+    --sidebar: 0.22 0.008 264;
+    --sidebar-foreground: 0.92 0.008 264;
+    --sidebar-primary: 0.58 0.22 264;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.26 0.01 264;
+    --sidebar-accent-foreground: 0.92 0.008 264;
+    --sidebar-border: 0.28 0.01 264;
+    --sidebar-ring: 0.58 0.22 264;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.22 0.008 264);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.28 0.01 264);
+  }
+}
+
+/* Message slide-in animation */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-slide-in {
+  animation: messageSlideIn 0.2s ease-out forwards;
+}
+
+/* AI Panel slide up */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out forwards;
+}

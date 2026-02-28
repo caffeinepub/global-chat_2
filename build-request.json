@@ -1,0 +1,89 @@
+{
+  "kind": "build_request",
+  "title": "Fix shutdown black overlay and startup green screen for non-admin users",
+  "projectName": "Global Chat",
+  "priority": "high",
+  "requirements": [
+    {
+      "id": "REQ-33",
+      "text": "Fix `ShutdownOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server is shut down (`globalchat_server_state` has `isShutdown: true` and current time is before `shutdownUntil`), non-owner users (any username that is not `AI.Caffeine`) see a full-screen black overlay rendered on top of the entire chat UI. The overlay must display: (1) a large '🔴 Server Shut Down' title, (2) the `shutdownMessage` from localStorage if provided, (3) a live countdown timer formatted as mm:ss that decrements every second showing time remaining until `shutdownUntil`. All message input interaction must be completely blocked while the overlay is active.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "screen not going black and green with text of remaining time of shutdown not coming for non admin users"
+        ]
+      },
+      "acceptanceCriteria": [
+        "When `AI.Caffeine` triggers a shutdown from the Admin Panel, any other logged-in user immediately sees a full-screen black overlay covering the entire chat UI",
+        "The overlay displays '🔴 Server Shut Down' as a large title",
+        "The overlay displays the shutdown message entered by the admin (if any)",
+        "The overlay displays a live countdown timer in mm:ss format that updates every second",
+        "The countdown timer accurately reflects the remaining time based on `shutdownUntil` Unix timestamp in `globalchat_server_state`",
+        "The message input bar is completely inaccessible/blocked while the overlay is active",
+        "The overlay is NOT shown to `AI.Caffeine` (the owner)",
+        "The overlay appears immediately when the BroadcastChannel `globalchat_server_control` broadcasts the shutdown event, without requiring a page reload",
+        "The overlay disappears automatically when the countdown reaches zero"
+      ]
+    },
+    {
+      "id": "REQ-34",
+      "text": "Fix `StartupOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server transitions from shutdown to running (either via the 'Start Up Server' admin command or natural timer expiry), all non-owner users (`AI.Caffeine` excluded) immediately see a full-screen green overlay displaying '🟢 Server Starting Up...' for exactly 5 seconds. After 5 seconds the overlay fades out and the normal chat UI is fully restored. This must work across all currently open browser tabs for non-owner users.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "screen not going black and green with text of remaining time of shutdown not coming for non admin users"
+        ]
+      },
+      "acceptanceCriteria": [
+        "When the server transitions from shutdown to running, all open tabs for non-owner users immediately show a full-screen green overlay",
+        "The overlay displays '🟢 Server Starting Up...' text clearly",
+        "The green overlay is shown for exactly 5 seconds before fading out",
+        "After the 5-second overlay, the normal chat UI is fully restored and users can send messages again",
+        "The startup overlay is NOT shown to `AI.Caffeine`",
+        "The startup overlay triggers both when the admin manually clicks 'Start Up Server' and when the shutdown timer expires naturally",
+        "The transition is handled via the `globalchat_server_control` BroadcastChannel so all open tabs react simultaneously"
+      ]
+    },
+    {
+      "id": "REQ-35",
+      "text": "Audit and fix the `useServerState` hook and `ChatPage.tsx` to ensure the server state is correctly read from `globalchat_server_state` localStorage on initial page load and kept in sync via the `globalchat_server_control` BroadcastChannel. Specifically: (1) on component mount, read the current server state from localStorage and immediately apply the shutdown overlay if `isShutdown` is true and `Date.now() < shutdownUntil`; (2) subscribe to the BroadcastChannel for real-time state changes and update React state accordingly; (3) ensure the shutdown/startup overlay visibility is derived from React state (not just localStorage reads) so React re-renders correctly when state changes.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "screen not going black and green with text of remaining time of shutdown not coming for non admin users"
+        ]
+      },
+      "acceptanceCriteria": [
+        "If a non-owner user opens the chat while the server is already shut down, the black overlay is shown immediately on page load",
+        "If a non-owner user's tab is open when a shutdown is triggered, the black overlay appears in real time via BroadcastChannel without a reload",
+        "The countdown timer in the overlay is accurate and starts from the correct remaining time",
+        "When the server startup event is received via BroadcastChannel, the black overlay is replaced by the green startup overlay for 5 seconds",
+        "No stale state persists between shutdown and startup transitions"
+      ]
+    }
+  ],
+  "constraints": [
+    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
+    "The overlay must not appear for the AI.Caffeine owner account under any circumstances",
+    "The existing localStorage key globalchat_server_state and BroadcastChannel name globalchat_server_control must be preserved"
+  ],
+  "nonGoals": [
+    "Changing the admin shutdown command UI or logic",
+    "Modifying the OwnerShutdownBanner shown to AI.Caffeine",
+    "Adding new admin commands",
+    "Changing the authentication system"
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-fix-shutdownoverlay-tsx-and-its-integration-in-chatpage-tsx-so-that-when-the-server-is-shut-down-globalchat-server-state-has-isshutdown-true-and-current-time-is-before-shutdownuntil-non-owner-users-any-username-that-is-not-ai-caffeine-see-a-full-screen-black-overlay-rendered-on-top-of-the-entire-chat-ui-the-overlay-must-display-1-a-large-server-shut-down-title-2-the-shutdownmessage-from-localstorage-if-provided-3-a-live-countdown-timer-formatted-as-mm-ss-that-decrements-every-second-showing-time-remaining-until-shutdownuntil-all-message-input-interaction-must-be-completely-blocked-while-the-overlay-is-active",
+      "featureTitle": "Fix `ShutdownOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server is shut down (`globalchat_server_state` has `isShutdown: true` and current time is before `shutdownUntil`), non-owner users (any username that is not `AI.Caffeine`) see a full-screen black overlay rendered on top of the entire chat UI. The overlay must display: (1) a large '🔴 Server Shut Down' title, (2) the `shutdownMessage` from localStorage if provided, (3) a live countdown timer formatted as mm:ss that decrements every second showing time remaining until `shutdownUntil`. All message input interaction must be completely blocked while the overlay is active.",
+      "files": [
+        "frontend/src/pages/ChatPage.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-33"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-fix-startupoverlay-tsx-and-its-integration-in-chatpage-tsx-so-that-when-the-server-transitions-from-shutdown-to-running-either-via-the-start-up-server-admin-command-or-natural-timer-expiry-all-non-owner-users-ai-caffeine-excluded-immediately-see-a-full-screen-green-overlay-displaying-server-starting-up-for-exactly-5-seconds-after-5-seconds-the-overlay-fades-out-and-the-normal-chat-ui-is-fully-restored-this-must-work-across-all-currently-open-browser-tabs-for-non-owner-users",
+      "featureTitle": "Fix `StartupOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server transitions from shutdown to running (either via the 'Start Up Server' admin command or natural timer expiry), all non-owner users (`AI.Caffeine` excluded) immediately see a full-screen green overlay displaying '🟢 Server Starting Up...' for exactly 5 seconds. After 5 seconds the overlay fades out and the normal chat UI is fully restored. This must work across all currently open browser tabs for non-owner users.",
+      "files": [
+        "frontend/src/pages/ChatPage.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-34"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-audit-and-fix-the-useserverstate-hook-and-chatpage-tsx-to-ensure-the-server-state-is-correctly-read-from-globalchat-server-state-localstorage-on-initial-page-load-and-kept-in-sync-via-the-globalchat-server-control-broadcastchannel-specifically-1-on-component-mount-read-the-current-server-state-from-localstorage-and-immediately-apply-the-shutdown-overlay-if-isshutdown-is-true-and-date-now-shutdownuntil-2-subscribe-to-the-broadcastchannel-for-real-time-state-changes-and-update-react-state-accordingly-3-ensure-the-shutdown-startup-overlay-visibility-is-derived-from-react-state-not-just-localstorage-reads-so-react-re-renders-correctly-when-state-changes",
+      "featureTitle": "Audit and fix the `useServerState` hook and `ChatPage.tsx` to ensure the server state is correctly read from `globalchat_server_state` localStorage on initial page load and kept in sync via the `globalchat_server_control` BroadcastChannel. Specifically: (1) on component mount, read the current server state from localStorage and immediately apply the shutdown overlay if `isShutdown` is true and `Date.now() < shutdownUntil`; (2) subscribe to the BroadcastChannel for real-time state changes and update React state accordingly; (3) ensure the shutdown/startup overlay visibility is derived from React state (not just localStorage reads) so React re-renders correctly when state changes.",
+      "files": [
+        "frontend/src/hooks/useServerState.ts",
+        "frontend/src/pages/ChatPage.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-35"
+      ],
+      "confidence": "high"
+    }
+  ]
+}
