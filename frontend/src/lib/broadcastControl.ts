@@ -1,36 +1,86 @@
-// Singleton BroadcastChannel utility for globalchat_server_control
+// BroadcastChannel wrapper with try/catch guards for environments where it may be unavailable
 
-const CHANNEL_NAME = 'globalchat_server_control';
+type BroadcastEventHandler = (event: MessageEvent) => void;
 
-type BroadcastCallback = (event: { eventType: string; payload: unknown; timestamp: number }) => void;
-
-const callbacks: Set<BroadcastCallback> = new Set();
 let channel: BroadcastChannel | null = null;
 
-function getChannel(): BroadcastChannel {
-  if (!channel) {
-    channel = new BroadcastChannel(CHANNEL_NAME);
-    channel.onmessage = (e) => {
-      callbacks.forEach(cb => cb(e.data));
-    };
-  }
-  return channel;
+try {
+  channel = new BroadcastChannel("globalchat_control");
+} catch (e) {
+  console.error("broadcastControl: BroadcastChannel unavailable", e);
+  channel = null;
 }
 
-export function broadcastEvent(eventType: string, payload?: unknown): void {
+const subscribers: Map<string, Set<BroadcastEventHandler>> = new Map();
+
+function handleMessage(event: MessageEvent): void {
   try {
-    getChannel().postMessage({ eventType, payload, timestamp: Date.now() });
-  } catch {
-    // ignore
+    const { type } = event.data || {};
+    if (!type) return;
+    const handlers = subscribers.get(type);
+    if (handlers) {
+      handlers.forEach((handler) => {
+        try {
+          handler(event);
+        } catch (e) {
+          console.error("broadcastControl: handler error", e);
+        }
+      });
+    }
+    // Also call wildcard subscribers
+    const wildcardHandlers = subscribers.get("*");
+    if (wildcardHandlers) {
+      wildcardHandlers.forEach((handler) => {
+        try {
+          handler(event);
+        } catch (e) {
+          console.error("broadcastControl: wildcard handler error", e);
+        }
+      });
+    }
+  } catch (e) {
+    console.error("broadcastControl: handleMessage error", e);
   }
 }
 
-export function subscribeToBroadcast(callback: BroadcastCallback): void {
-  callbacks.add(callback);
-  // Ensure channel is open
-  getChannel();
+if (channel) {
+  channel.addEventListener("message", handleMessage);
 }
 
-export function unsubscribeFromBroadcast(callback: BroadcastCallback): void {
-  callbacks.delete(callback);
+export function subscribe(
+  eventType: string,
+  handler: BroadcastEventHandler
+): void {
+  try {
+    if (!subscribers.has(eventType)) {
+      subscribers.set(eventType, new Set());
+    }
+    subscribers.get(eventType)!.add(handler);
+  } catch (e) {
+    console.error("broadcastControl: subscribe error", e);
+  }
+}
+
+export function unsubscribe(
+  eventType: string,
+  handler: BroadcastEventHandler
+): void {
+  try {
+    const handlers = subscribers.get(eventType);
+    if (handlers) {
+      handlers.delete(handler);
+    }
+  } catch (e) {
+    console.error("broadcastControl: unsubscribe error", e);
+  }
+}
+
+export function broadcastEvent(type: string, payload?: unknown): void {
+  try {
+    if (channel) {
+      channel.postMessage({ type, ...(payload ? { payload } : {}) });
+    }
+  } catch (e) {
+    console.error("broadcastControl: broadcastEvent error", e);
+  }
 }

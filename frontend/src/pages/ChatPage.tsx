@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getActiveSession } from "@/lib/auth";
 import { useBroadcastMessages } from "@/hooks/useBroadcastMessages";
 import { useServerState } from "@/hooks/useServerState";
 import { useMuteManager } from "@/hooks/useMuteManager";
@@ -22,10 +21,12 @@ import ConfettiBurst from "@/components/ConfettiBurst";
 
 const OWNER = "AI.Caffeine";
 
-export default function ChatPage({ onLogout }: { onLogout: () => void }) {
-  const session = getActiveSession();
-  const username = session?.username || "Guest";
+interface ChatPageProps {
+  username: string;
+  onLogout: () => void;
+}
 
+export default function ChatPage({ username, onLogout }: ChatPageProps) {
   const { messages, sendMessage } = useBroadcastMessages();
   const { isShutdown, shutdownMessage, shutdownUntil, showStartupOverlay } = useServerState();
   const { isUserMuted } = useMuteManager();
@@ -44,32 +45,63 @@ export default function ChatPage({ onLogout }: { onLogout: () => void }) {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([username]);
 
   useEffect(() => {
-    const stored: string[] = JSON.parse(localStorage.getItem("globalchat_online_users") || "[]");
-    if (!stored.includes(username)) stored.push(username);
-    localStorage.setItem("globalchat_online_users", JSON.stringify(stored));
-    setOnlineUsers(stored);
+    try {
+      const stored: string[] = JSON.parse(localStorage.getItem("globalchat_online_users") || "[]");
+      if (!stored.includes(username)) stored.push(username);
+      localStorage.setItem("globalchat_online_users", JSON.stringify(stored));
+      setOnlineUsers(stored);
+    } catch {
+      setOnlineUsers([username]);
+    }
 
     return () => {
-      const current: string[] = JSON.parse(localStorage.getItem("globalchat_online_users") || "[]");
-      const updated = current.filter(u => u !== username);
-      localStorage.setItem("globalchat_online_users", JSON.stringify(updated));
+      try {
+        const current: string[] = JSON.parse(localStorage.getItem("globalchat_online_users") || "[]");
+        const updated = current.filter(u => u !== username);
+        localStorage.setItem("globalchat_online_users", JSON.stringify(updated));
+      } catch {
+        // ignore cleanup errors
+      }
     };
   }, [username]);
 
   // Listen for channel rename
   useEffect(() => {
-    const stored = localStorage.getItem("globalchat_channel_name");
-    if (stored) setChannelName(stored);
+    try {
+      const stored = localStorage.getItem("globalchat_channel_name");
+      if (stored) setChannelName(stored);
+    } catch {
+      // ignore
+    }
 
-    const channel = new BroadcastChannel("globalchat_server_control");
-    channel.onmessage = (event) => {
-      const { type, name } = event.data || {};
-      if (type === "rename_channel" && name) {
-        setChannelName(name);
-        localStorage.setItem("globalchat_channel_name", name);
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel("globalchat_server_control");
+      channel.onmessage = (event) => {
+        try {
+          const { type, name } = event.data || {};
+          if (type === "rename_channel" && name) {
+            setChannelName(name);
+            try {
+              localStorage.setItem("globalchat_channel_name", name);
+            } catch {
+              // ignore
+            }
+          }
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // BroadcastChannel unavailable
+    }
+    return () => {
+      try {
+        channel?.close();
+      } catch {
+        // ignore
       }
     };
-    return () => channel.close();
   }, []);
 
   // Startup overlay from server state
@@ -81,9 +113,13 @@ export default function ChatPage({ onLogout }: { onLogout: () => void }) {
 
   // Check for API key on mount (owner only)
   useEffect(() => {
-    const key = getOpenAIKey();
-    if (!key && username === OWNER) {
-      setApiKeyPrompt(true);
+    try {
+      const key = getOpenAIKey();
+      if (!key && username === OWNER) {
+        setApiKeyPrompt(true);
+      }
+    } catch {
+      // ignore
     }
   }, [username]);
 
@@ -107,19 +143,25 @@ export default function ChatPage({ onLogout }: { onLogout: () => void }) {
   }, [sendMessage]);
 
   const handleStartUp = useCallback(() => {
-    const state = { isShutdown: false, shutdownUntil: 0, shutdownMessage: "" };
-    localStorage.setItem("globalchat_server_state", JSON.stringify(state));
+    try {
+      const state = { isShutdown: false, shutdownUntil: 0, shutdownMessage: "" };
+      localStorage.setItem("globalchat_server_state", JSON.stringify(state));
+    } catch {
+      // ignore
+    }
     try {
       const ch = new BroadcastChannel("globalchat_server_control");
       ch.postMessage({ type: "startup" });
       ch.close();
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, []);
 
-  // AI mention detection — positional args
+  // AI mention detection
   useAIMentionDetector(messages, sendMessage);
 
-  // Chat moderation — positional args
+  // Chat moderation
   useChatModeration(messages, sendMessage);
 
   const isOwner = username === OWNER;
@@ -208,7 +250,11 @@ export default function ChatPage({ onLogout }: { onLogout: () => void }) {
                 if (e.key === "Enter") {
                   const val = (e.target as HTMLInputElement).value.trim();
                   if (val) {
-                    localStorage.setItem("globalchat_openai_key", val);
+                    try {
+                      localStorage.setItem("globalchat_openai_key", val);
+                    } catch {
+                      // ignore
+                    }
                     setApiKeyPrompt(false);
                   }
                 }
@@ -221,7 +267,11 @@ export default function ChatPage({ onLogout }: { onLogout: () => void }) {
                 onClick={() => {
                   const val = apiKeyInputRef.current?.value.trim();
                   if (val) {
-                    localStorage.setItem("globalchat_openai_key", val);
+                    try {
+                      localStorage.setItem("globalchat_openai_key", val);
+                    } catch {
+                      // ignore
+                    }
                     setApiKeyPrompt(false);
                   }
                 }}

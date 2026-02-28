@@ -1,75 +1,79 @@
 {
   "kind": "build_request",
-  "title": "Fix blank page on new tab/window open",
+  "title": "Fix broken login authentication flow",
   "projectName": "Global Chat",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-76",
-      "text": "Fix the blank/empty page issue that occurs when the app is opened in a new tab or window. Audit `frontend/src/App.tsx` to ensure the session check on mount correctly reads `globalchat_session` from localStorage and transitions to either `LandingPage` or `ChatPage` without rendering a blank screen. The loading/spinner state must resolve correctly on initial render, and the app must never remain stuck in a blank state after the session check completes.",
+      "id": "REQ-97",
+      "text": "Audit and fix `frontend/src/lib/auth.ts` so that the `login` function correctly retrieves the stored credential for a given username from `globalchat_users` in localStorage and compares it against the provided password using the exact same encoding scheme (base64 `btoa`) used by the `register` function. Fix any mismatch between how passwords are encoded on registration versus how they are compared on login. The `seedOwnerAccount` function must seed the `AI.Caffeine` account with `btoa('2580')` in a way that is consistent with the login comparison. Wrap all localStorage reads and writes in try/catch blocks so no exception propagates to the render tree.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-latest"
         ],
         "quotes": [
-          "when i open it in a different page its showing nothing just blank empty space no nothing"
+          "its still failing"
         ]
       },
       "acceptanceCriteria": [
-        "Opening the app URL in a brand new browser tab renders either the LandingPage (if no active session) or the ChatPage (if a valid session exists) — never a blank white or black screen.",
-        "The loading spinner (if shown) always resolves within a short time and transitions to the correct page.",
-        "The session check in App.tsx reads `globalchat_session` from localStorage synchronously or with a brief async check, and sets the correct page state before the first meaningful render.",
-        "The fix works consistently across Chrome, Firefox, and mobile browsers when opening a new tab."
+        "A user who registers with username 'testuser' and password 'abc123' can successfully log in with those exact credentials on the next attempt.",
+        "The `AI.Caffeine` account can be logged into with password '2580'.",
+        "Logging in with a wrong password shows an inline error message such as 'Invalid username or password.' rather than a blank screen or unhandled error.",
+        "All localStorage operations in auth.ts are wrapped in try/catch and never throw uncaught exceptions.",
+        "The encoding scheme used in `register`, `login`, and `seedOwnerAccount` is identical (all use `btoa` for encoding and `atob`-based comparison for verification)."
       ]
     },
     {
-      "id": "REQ-77",
-      "text": "Audit `frontend/src/main.tsx` entry point and `frontend/index.html` to ensure the React app mounts correctly on all page loads. Verify that the root `<div id='root'>` is always present and that the React `createRoot` call in `main.tsx` never fails silently. Ensure no uncaught JavaScript errors during initialization prevent the app from rendering.",
+      "id": "REQ-98",
+      "text": "Audit and fix `frontend/src/pages/LandingPage.tsx` to ensure the login form correctly calls the `login` function from `frontend/src/lib/auth.ts`, displays a clear inline error message ('Invalid username or password.') on failure, and on success writes the authenticated session to `globalchat_session` in localStorage (with fields `username` and `isAuthenticated: true`) before navigating to ChatPage. The Create Account flow must call `register` and then immediately log the user in and navigate to ChatPage. Wrap all localStorage operations in try/catch.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-latest"
         ],
         "quotes": [
-          "when i open it in a different page its showing nothing just blank empty space no nothing"
+          "its still failing"
         ]
       },
       "acceptanceCriteria": [
-        "No JavaScript errors appear in the browser console on initial page load in a new tab.",
-        "The React app mounts successfully and renders content without requiring a page refresh.",
-        "The `root` div in `index.html` is correctly targeted by the React entry point."
+        "Submitting the login form with valid credentials navigates the user to ChatPage without a blank screen.",
+        "Submitting the login form with invalid credentials shows 'Invalid username or password.' inline, not a generic 'failed' message.",
+        "Creating a new account and submitting automatically logs the user in and navigates to ChatPage.",
+        "After successful login, `globalchat_session` in localStorage contains `{ username: '...', isAuthenticated: true }`.",
+        "No uncaught errors are thrown during the login or registration flows."
       ]
     },
     {
-      "id": "REQ-78",
-      "text": "Ensure `frontend/src/lib/auth.ts` initializes synchronously without throwing errors that could block the app render. The `seedOwnerAccount` call (which seeds the `AI.Caffeine` account into `globalchat_users`) must not throw or cause unhandled exceptions if localStorage is unavailable or corrupted. Wrap any localStorage reads/writes in try-catch blocks to prevent initialization failures from crashing the app.",
+      "id": "REQ-99",
+      "text": "Audit `frontend/src/App.tsx` to ensure that after `LandingPage` sets `globalchat_session` in localStorage, the app immediately re-renders and shows `ChatPage`. The synchronous lazy `useState` initializer must detect a valid authenticated session (`isAuthenticated: true`) on mount and render `ChatPage` directly. Additionally, expose a stable `onLogin` or `setSession` callback to `LandingPage` so that when the user logs in, the React state in `App.tsx` is updated synchronously — not relying solely on a page reload or re-mount to pick up the new session.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-latest"
         ],
         "quotes": [
-          "when i open it in a different page its showing nothing just blank empty space no nothing"
+          "its still failing"
         ]
       },
       "acceptanceCriteria": [
-        "The auth module loads without throwing exceptions even if localStorage contains malformed data.",
-        "Errors in `auth.ts` initialization do not prevent the React app from rendering.",
-        "The app renders correctly even if localStorage is empty (fresh browser profile or incognito mode)."
+        "After a successful login in LandingPage, the app transitions to ChatPage without requiring a full page reload.",
+        "Opening the app in a new tab while already logged in (valid `globalchat_session` in localStorage) immediately shows ChatPage, not a blank screen.",
+        "Opening the app with no session shows LandingPage immediately.",
+        "The app never renders a blank screen after the initial synchronous render cycle."
       ]
     }
   ],
   "constraints": [
-    "Do not modify files listed in frontend.immutablePaths: frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, frontend/src/components/ui.",
+    "Do not change `frontend/src/main.tsx` or any file listed under frontend.immutablePaths.",
     "Do not alter the backend schema or Motoko actor.",
-    "Preserve all existing authenticated session logic — do not change how sessions are stored or validated."
+    "The AI.Caffeine account password must remain '2580' and the owner account seeding must not overwrite other user accounts."
   ],
   "nonGoals": [
-    "Adding new features or commands to the admin panel.",
-    "Changing the visual design or theme.",
-    "Modifying the cross-device messaging logic.",
-    "Altering any backend Motoko code."
+    "Adding new features or admin commands.",
+    "Changing the visual design or layout.",
+    "Modifying the backend message store.",
+    "Fixing any issues unrelated to the login/authentication flow."
   ],
   "imageRequirements": {
     "required": [],

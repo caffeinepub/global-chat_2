@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 31,
+  "projectStateVersion": 39,
   "summary": "A Discord-inspired global chat website called \"Global Chat\" with real-time messaging via BroadcastChannel + localStorage, AI chatbot integration (@G.ai mentions in global chat), secret emoji picker (Ctrl+Alt), clear chat (Ctrl+C), OpenAI-powered auto-moderation with 10-minute bans, a moderation ban log/admin panel, user authentication (username + password), logout button, a special verified owner account 'AI.Caffeine' with hardcoded password '2580' and full admin privileges, 30 fun admin commands replacing the previous broken ones, and server state management.",
   "architectural_notes": [
     "Uses BroadcastChannel API + localStorage (key: globalchat_messages) for real-time cross-tab messaging with no backend",
@@ -16,7 +16,7 @@
   "known_issues": [
     "G.AI Chat panel not functioning properly — needs fix and model switch to OpenAI ChatGPT",
     "Messages sent on mobile are not visible on PC — BroadcastChannel does not work cross-device, only cross-tab on the same browser",
-    "App shows blank/empty page when opened in a new tab or window — likely a routing or initialization issue"
+    "Login fails with 'failed' error after blank page fix in Version 17 — authentication flow broken"
   ],
   "isFixRequest": true,
   "existing_features": [
@@ -491,6 +491,70 @@
         "REQ-78"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-rewrite-frontend-src-app-tsx-so-that-the-session-check-is-performed-synchronously-via-a-lazy-usestate-initializer-that-reads-globalchat-session-from-localstorage-on-first-render-the-component-must-immediately-render-either-landingpage-or-chatpage-based-on-the-session-result-with-no-intermediate-loading-spinner-state-and-no-async-delay-the-app-must-never-remain-on-a-blank-screen-after-the-initial-render-cycle-completes",
+      "title": "Rewrite `frontend/src/App.tsx` so that the session check is performed synchronously via a lazy `useState` initializer that reads `globalchat_session` from localStorage on first render. The component must immediately render either `LandingPage` or `ChatPage` based on the session result — with no intermediate loading/spinner state and no async delay. The app must never remain on a blank screen after the initial render cycle completes.",
+      "reqIds": [
+        "REQ-79"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-and-harden-frontend-src-lib-auth-ts-to-ensure-all-localstorage-reads-and-writes-including-the-seedowneraccount-call-that-seeds-the-ai-caffeine-account-are-wrapped-in-try-catch-blocks-any-exception-thrown-during-module-initialization-must-be-silently-caught-and-logged-to-console-error-rather-than-propagating-to-the-react-render-tree-the-module-must-export-its-functions-even-if-localstorage-is-unavailable",
+      "title": "Audit and harden `frontend/src/lib/auth.ts` to ensure all localStorage reads and writes (including the `seedOwnerAccount` call that seeds the `AI.Caffeine` account) are wrapped in `try/catch` blocks. Any exception thrown during module initialization must be silently caught and logged to `console.error` rather than propagating to the React render tree. The module must export its functions even if localStorage is unavailable.",
+      "reqIds": [
+        "REQ-80"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-frontend-index-html-to-confirm-the-div-id-root-element-is-present-and-unconditional-in-the-document-body-ensure-no-inline-script-in-index-html-throws-an-error-that-could-block-the-page-from-loading-the-script-type-module-src-src-main-tsx-tag-must-be-present-and-correctly-reference-the-entry-point",
+      "title": "Audit `frontend/index.html` to confirm the `<div id=\"root\">` element is present and unconditional in the document body. Ensure no inline script in `index.html` throws an error that could block the page from loading. The `<script type=\"module\" src=\"/src/main.tsx\">` tag must be present and correctly reference the entry point.",
+      "reqIds": [
+        "REQ-81"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-that-all-top-level-imports-in-frontend-src-app-tsx-including-landingpage-chatpage-and-any-hooks-do-not-throw-errors-or-trigger-side-effects-that-return-null-or-undefined-before-the-component-renders-if-any-imported-module-performs-localstorage-access-at-the-module-scope-outside-of-functions-hooks-wrap-those-accesses-in-try-catch-to-prevent-render-blocking-errors",
+      "title": "Ensure that all top-level imports in `frontend/src/App.tsx` — including `LandingPage`, `ChatPage`, and any hooks — do not throw errors or trigger side-effects that return `null` or `undefined` before the component renders. If any imported module performs localStorage access at the module scope (outside of functions/hooks), wrap those accesses in `try/catch` to prevent render-blocking errors.",
+      "reqIds": [
+        "REQ-82"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-frontend-src-lib-auth-ts-to-verify-the-login-function-correctly-retrieves-the-stored-credential-for-a-username-from-globalchat-users-and-compares-it-against-the-provided-password-using-the-correct-encoding-scheme-base64-or-equivalent-ensure-the-register-function-stores-credentials-using-the-same-encoding-scheme-fix-any-mismatch-between-how-passwords-are-encoded-on-registration-versus-how-they-are-compared-on-login-the-seedowneraccount-function-must-seed-the-ai-caffeine-account-with-the-encoded-form-of-2580-in-a-way-that-is-consistent-with-the-login-comparison-logic",
+      "title": "Audit `frontend/src/lib/auth.ts` to verify the `login` function correctly retrieves the stored credential for a username from `globalchat_users` and compares it against the provided password using the correct encoding scheme (base64 or equivalent). Ensure the `register` function stores credentials using the same encoding scheme. Fix any mismatch between how passwords are encoded on registration versus how they are compared on login. The `seedOwnerAccount` function must seed the `AI.Caffeine` account with the encoded form of '2580' in a way that is consistent with the login comparison logic.",
+      "reqIds": [
+        "REQ-95"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-and-fix-frontend-src-lib-auth-ts-so-that-the-login-function-correctly-retrieves-the-stored-credential-for-a-given-username-from-globalchat-users-in-localstorage-and-compares-it-against-the-provided-password-using-the-exact-same-encoding-scheme-base64-btoa-used-by-the-register-function-fix-any-mismatch-between-how-passwords-are-encoded-on-registration-versus-how-they-are-compared-on-login-the-seedowneraccount-function-must-seed-the-ai-caffeine-account-with-btoa-2580-in-a-way-that-is-consistent-with-the-login-comparison-wrap-all-localstorage-reads-and-writes-in-try-catch-blocks-so-no-exception-propagates-to-the-render-tree",
+      "title": "Audit and fix `frontend/src/lib/auth.ts` so that the `login` function correctly retrieves the stored credential for a given username from `globalchat_users` in localStorage and compares it against the provided password using the exact same encoding scheme (base64 `btoa`) used by the `register` function. Fix any mismatch between how passwords are encoded on registration versus how they are compared on login. The `seedOwnerAccount` function must seed the `AI.Caffeine` account with `btoa('2580')` in a way that is consistent with the login comparison. Wrap all localStorage reads and writes in try/catch blocks so no exception propagates to the render tree.",
+      "reqIds": [
+        "REQ-97"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-and-fix-frontend-src-pages-landingpage-tsx-to-ensure-the-login-form-correctly-calls-the-login-function-from-frontend-src-lib-auth-ts-displays-a-clear-inline-error-message-invalid-username-or-password-on-failure-and-on-success-writes-the-authenticated-session-to-globalchat-session-in-localstorage-with-fields-username-and-isauthenticated-true-before-navigating-to-chatpage-the-create-account-flow-must-call-register-and-then-immediately-log-the-user-in-and-navigate-to-chatpage-wrap-all-localstorage-operations-in-try-catch",
+      "title": "Audit and fix `frontend/src/pages/LandingPage.tsx` to ensure the login form correctly calls the `login` function from `frontend/src/lib/auth.ts`, displays a clear inline error message ('Invalid username or password.') on failure, and on success writes the authenticated session to `globalchat_session` in localStorage (with fields `username` and `isAuthenticated: true`) before navigating to ChatPage. The Create Account flow must call `register` and then immediately log the user in and navigate to ChatPage. Wrap all localStorage operations in try/catch.",
+      "reqIds": [
+        "REQ-98"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-frontend-src-app-tsx-to-ensure-that-after-landingpage-sets-globalchat-session-in-localstorage-the-app-immediately-re-renders-and-shows-chatpage-the-synchronous-lazy-usestate-initializer-must-detect-a-valid-authenticated-session-isauthenticated-true-on-mount-and-render-chatpage-directly-additionally-expose-a-stable-onlogin-or-setsession-callback-to-landingpage-so-that-when-the-user-logs-in-the-react-state-in-app-tsx-is-updated-synchronously-not-relying-solely-on-a-page-reload-or-re-mount-to-pick-up-the-new-session",
+      "title": "Audit `frontend/src/App.tsx` to ensure that after `LandingPage` sets `globalchat_session` in localStorage, the app immediately re-renders and shows `ChatPage`. The synchronous lazy `useState` initializer must detect a valid authenticated session (`isAuthenticated: true`) on mount and render `ChatPage` directly. Additionally, expose a stable `onLogin` or `setSession` callback to `LandingPage` so that when the user logs in, the React state in `App.tsx` is updated synchronously — not relying solely on a page reload or re-mount to pick up the new session.",
+      "reqIds": [
+        "REQ-99"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -715,6 +779,110 @@
       "summary": "Add a 'Promote to Mod' and 'Demote from Mod' command pair to AdminPanel.tsx exclusively for AI.Caffeine. 'Promote to Mod' stores a username in a `globalchat_mods` JSON array in localStorage and posts a system message in global chat: '🛡️ [username] has been promoted to Moderator'. 'Demote from Mod' removes the username from `globalchat_mods` and posts a system message: '🛡️ [username] has been demoted from Moderator'. Users in `globalchat_mods` display a 🛡️ Mod badge (distinct from the Admin badge) next to their username in chat messages and the sidebar user list. Both commands show inline success/error feedback.",
       "reqIds": [
         "REQ-62"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-36",
+      "summary": "Rewrite `frontend/src/App.tsx` with a synchronous lazy `useState` initializer that reads `globalchat_session` from localStorage on the very first render. Wrap the localStorage read in a `try/catch`. Based on the result, immediately render either `LandingPage` or `ChatPage` — no async effects, no loading spinner, no intermediate null/undefined state. The component must never return a blank screen after the initial render cycle.",
+      "reqIds": [
+        "REQ-83"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-37",
+      "summary": "Harden `frontend/src/lib/auth.ts` so that all localStorage reads and writes — including the module-level `seedOwnerAccount()` call that seeds `AI.Caffeine` — are wrapped in `try/catch` blocks. Any exception during module initialization must be caught and logged to `console.error` without propagating to the React render tree. The module must successfully export all its functions regardless of localStorage availability.",
+      "reqIds": [
+        "REQ-84"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-38",
+      "summary": "Audit and fix all top-level module-scope code across all files imported by `frontend/src/App.tsx` (including `LandingPage`, `ChatPage`, all hooks, and `frontend/src/lib/auth.ts`). Any localStorage access, BroadcastChannel instantiation, or side-effect code that runs at module scope (outside of functions or hooks) must be moved inside functions/hooks or wrapped in `try/catch`. No module-level code may throw an uncaught exception that prevents React from rendering.",
+      "reqIds": [
+        "REQ-85"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-39",
+      "summary": "Verify and fix `frontend/index.html` to ensure: (1) the `<div id=\"root\">` element is unconditionally present in the document body; (2) no inline `<script>` tag throws an error that blocks page load; (3) the `<script type=\"module\" src=\"/src/main.tsx\">` tag is present and correctly references the entry point. Make no other changes to this file.",
+      "reqIds": [
+        "REQ-86"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-40",
+      "summary": "Perform a full integration audit of `frontend/src/pages/ChatPage.tsx` and all hooks it depends on (`useServerState`, `useBroadcastMessages`, `useMuteManager`, `useBanManager`, `useSlowMode`, `useChatLock`, `useShadowban`, `useAIMentionDetector`, `useChatModeration`, `useHighlights`, `useMOTD`, `usePinnedMessages`). Fix any runtime errors, undefined-variable references, missing imports, or broken hook contracts that were introduced in Version 16. Ensure the component mounts without throwing and renders the chat UI correctly for authenticated users.",
+      "reqIds": [
+        "REQ-87"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-41",
+      "summary": "Fix `frontend/src/hooks/useBroadcastMessages.ts` to ensure it initializes correctly without throwing. On mount, immediately load any cached messages from localStorage (`globalchat_messages`), then begin polling the ICP backend actor via `getMessages(since)` every 2 seconds. If the backend actor is unavailable or the call fails, fall back to localStorage-only mode silently. When sending a message, attempt to call `postMessage` on the backend actor and also write to localStorage and broadcast via BroadcastChannel. All try/catch blocks must be in place so a backend failure never crashes the hook.",
+      "reqIds": [
+        "REQ-88"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-42",
+      "summary": "Fix `frontend/src/components/AdminPanel.tsx` to ensure it renders without throwing for the `AI.Caffeine` user. Repair any broken imports, undefined references, or invalid hook calls introduced in Version 16. The panel must display its full Version 9 command set (Ban, Unban, Mute, Unmute, Mass Mute, Mass Unmute, Shutdown Server, Start Up Server, Slow Mode, Disable Slow Mode, Lock Chat, Unlock Chat, Big Message, Force Text, and the 25 More Commands) without crashing.",
+      "reqIds": [
+        "REQ-89"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-43",
+      "summary": "Fix `frontend/src/components/ChatArea.tsx`, `frontend/src/components/Sidebar.tsx`, `frontend/src/components/TopBar.tsx`, and `frontend/src/components/MessageInputBar.tsx` to resolve any runtime errors, missing prop types, broken imports, or undefined references introduced in Version 16. Each component must render without throwing and display its content correctly.",
+      "reqIds": [
+        "REQ-90"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-44",
+      "summary": "Fix `frontend/src/components/ShutdownOverlay.tsx`, `frontend/src/components/StartupOverlay.tsx`, and `frontend/src/components/OwnerShutdownBanner.tsx` to resolve any runtime errors or broken prop contracts introduced in Version 16. These components must render correctly when activated, and their absence from the DOM must not cause errors when the server is running normally.",
+      "reqIds": [
+        "REQ-91"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-45",
+      "summary": "Fix `frontend/src/hooks/useServerState.ts` to correctly read `globalchat_server_state` from localStorage on mount and apply the shutdown overlay immediately if `isShutdown: true` and `Date.now() < shutdownUntil`. Wrap all localStorage reads in try/catch. Subscribe to the `globalchat_server_control` BroadcastChannel for state changes and update React state accordingly. When `shutdownUntil` expires naturally, auto-set `isShutdown: false` and broadcast the startup event. All overlay visibility must be derived from React state.",
+      "reqIds": [
+        "REQ-92"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-46",
+      "summary": "Fix `frontend/src/hooks/useMuteManager.ts`, `frontend/src/hooks/useBanManager.ts`, `frontend/src/hooks/useSlowMode.ts`, and `frontend/src/hooks/useChatLock.ts` to resolve any runtime errors introduced in Version 16. Wrap all localStorage operations in try/catch. Ensure each hook initializes without throwing and exposes its enforcement API correctly to `MessageInputBar.tsx` and `ChatPage.tsx`.",
+      "reqIds": [
+        "REQ-93"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-47",
+      "summary": "Audit and fix `frontend/src/pages/LandingPage.tsx` to ensure the login and account creation flow works correctly. The login form must read credentials from `globalchat_users` localStorage, validate the entered username and password using the same encoding/hashing scheme used in `frontend/src/lib/auth.ts`, and call `onJoin` (or equivalent navigation) on success. On failure, display a clear inline error message such as 'Invalid username or password.' rather than a generic 'failed' error. The Create Account flow must register new credentials correctly and then log the user in. Wrap all localStorage operations in try/catch to prevent crashes.",
+      "reqIds": [
+        "REQ-94"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-49",
+      "summary": "Ensure `frontend/src/App.tsx` correctly passes the `onJoin` callback (or equivalent session-setting mechanism) to `LandingPage`. After a successful login or registration in `LandingPage`, the session must be written to `globalchat_session` in localStorage with the correct structure (username + isAuthenticated: true), and `App.tsx` must re-render to show `ChatPage` immediately. The synchronous lazy `useState` initializer that reads `globalchat_session` must correctly detect a valid authenticated session and render `ChatPage` without a blank screen.",
+      "reqIds": [
+        "REQ-96"
       ],
       "status": "pending"
     }

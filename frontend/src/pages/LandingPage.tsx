@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { Globe, Eye, EyeOff } from 'lucide-react';
-import { createAccount, loginUser, setActiveSession } from '../lib/auth';
+import { registerUser, loginUser, saveSession } from '../lib/auth';
 
 interface LandingPageProps {
   onJoin: (name: string) => void;
@@ -16,45 +16,50 @@ export default function LandingPage({ onJoin }: LandingPageProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
     const trimmedUsername = username.trim();
 
     if (!trimmedUsername) {
       setError('Please enter your username.');
-      setIsLoading(false);
       return;
     }
     if (!password) {
       setError('Please enter your password.');
-      setIsLoading(false);
       return;
     }
 
-    if (mode === 'create') {
-      const result = createAccount(trimmedUsername, password);
-      if (!result.success) {
-        setError(result.error || 'Failed to create account.');
-        setIsLoading(false);
-        return;
-      }
-      setActiveSession(trimmedUsername);
-      onJoin(trimmedUsername);
-    } else {
-      const result = loginUser(trimmedUsername, password);
-      if (!result.success) {
-        setError(result.error || 'Login failed.');
-        setIsLoading(false);
-        return;
-      }
-      setActiveSession(result.resolvedUsername!);
-      onJoin(result.resolvedUsername!);
-    }
+    setIsLoading(true);
 
-    setIsLoading(false);
+    try {
+      if (mode === 'create') {
+        const result = registerUser(trimmedUsername, password);
+        if (!result.success) {
+          setError(result.error || 'Failed to create account.');
+          setIsLoading(false);
+          return;
+        }
+        // Registration succeeded — save session and navigate
+        saveSession(trimmedUsername);
+        onJoin(trimmedUsername);
+      } else {
+        const result = loginUser(trimmedUsername, password);
+        if (!result.success) {
+          setError(result.error || 'Invalid username or password.');
+          setIsLoading(false);
+          return;
+        }
+        // Login succeeded — save session and navigate
+        saveSession(trimmedUsername);
+        onJoin(trimmedUsername);
+      }
+    } catch (err) {
+      console.error('LandingPage: handleSubmit error', err);
+      setError('Something went wrong. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   const switchMode = (newMode: AuthMode) => {
@@ -148,7 +153,7 @@ export default function LandingPage({ onJoin }: LandingPageProps) {
                     setPassword(e.target.value);
                     setError('');
                   }}
-                  placeholder={mode === 'create' ? 'Create a password (min 4 chars)...' : 'Enter your password...'}
+                  placeholder={mode === 'create' ? 'Create a password...' : 'Enter your password...'}
                   autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
                   className="w-full bg-dc-input text-white placeholder:text-dc-muted rounded-lg px-4 py-3 pr-11 text-sm border border-white/10 focus:outline-none focus:border-dc-accent focus:ring-1 focus:ring-dc-accent transition-colors"
                 />

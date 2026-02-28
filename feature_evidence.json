@@ -2,44 +2,8 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-fix-the-blank-empty-page-issue-that-occurs-when-the-app-is-opened-in-a-new-tab-or-window-audit-frontend-src-app-tsx-to-ensure-the-session-check-on-mount-correctly-reads-globalchat-session-from-localstorage-and-transitions-to-either-landingpage-or-chatpage-without-rendering-a-blank-screen-the-loading-spinner-state-must-resolve-correctly-on-initial-render-and-the-app-must-never-remain-stuck-in-a-blank-state-after-the-session-check-completes",
-      "featureTitle": "Fix the blank/empty page issue that occurs when the app is opened in a new tab or window. Audit `frontend/src/App.tsx` to ensure the session check on mount correctly reads `globalchat_session` from localStorage and transitions to either `LandingPage` or `ChatPage` without rendering a blank screen. The loading/spinner state must resolve correctly on initial render, and the app must never remain stuck in a blank state after the session check completes.",
-      "files": [
-        "frontend/src/App.tsx"
-      ],
-      "components": [
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-76"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-audit-frontend-src-main-tsx-entry-point-and-frontend-index-html-to-ensure-the-react-app-mounts-correctly-on-all-page-loads-verify-that-the-root-div-id-root-is-always-present-and-that-the-react-createroot-call-in-main-tsx-never-fails-silently-ensure-no-uncaught-javascript-errors-during-initialization-prevent-the-app-from-rendering",
-      "featureTitle": "Audit `frontend/src/main.tsx` entry point and `frontend/index.html` to ensure the React app mounts correctly on all page loads. Verify that the root `<div id='root'>` is always present and that the React `createRoot` call in `main.tsx` never fails silently. Ensure no uncaught JavaScript errors during initialization prevent the app from rendering.",
-      "files": [
-        "frontend/index.html"
-      ],
-      "components": [
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-77"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-ensure-frontend-src-lib-auth-ts-initializes-synchronously-without-throwing-errors-that-could-block-the-app-render-the-seedowneraccount-call-which-seeds-the-ai-caffeine-account-into-globalchat-users-must-not-throw-or-cause-unhandled-exceptions-if-localstorage-is-unavailable-or-corrupted-wrap-any-localstorage-reads-writes-in-try-catch-blocks-to-prevent-initialization-failures-from-crashing-the-app",
-      "featureTitle": "Ensure `frontend/src/lib/auth.ts` initializes synchronously without throwing errors that could block the app render. The `seedOwnerAccount` call (which seeds the `AI.Caffeine` account into `globalchat_users`) must not throw or cause unhandled exceptions if localStorage is unavailable or corrupted. Wrap any localStorage reads/writes in try-catch blocks to prevent initialization failures from crashing the app.",
+      "featureId": "feature-audit-and-fix-frontend-src-lib-auth-ts-so-that-the-login-function-correctly-retrieves-the-stored-credential-for-a-given-username-from-globalchat-users-in-localstorage-and-compares-it-against-the-provided-password-using-the-exact-same-encoding-scheme-base64-btoa-used-by-the-register-function-fix-any-mismatch-between-how-passwords-are-encoded-on-registration-versus-how-they-are-compared-on-login-the-seedowneraccount-function-must-seed-the-ai-caffeine-account-with-btoa-2580-in-a-way-that-is-consistent-with-the-login-comparison-wrap-all-localstorage-reads-and-writes-in-try-catch-blocks-so-no-exception-propagates-to-the-render-tree",
+      "featureTitle": "Audit and fix `frontend/src/lib/auth.ts` so that the `login` function correctly retrieves the stored credential for a given username from `globalchat_users` in localStorage and compares it against the provided password using the exact same encoding scheme (base64 `btoa`) used by the `register` function. Fix any mismatch between how passwords are encoded on registration versus how they are compared on login. The `seedOwnerAccount` function must seed the `AI.Caffeine` account with `btoa('2580')` in a way that is consistent with the login comparison. Wrap all localStorage reads and writes in try/catch blocks so no exception propagates to the render tree.",
       "files": [
         "frontend/src/lib/auth.ts"
       ],
@@ -51,7 +15,43 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-78"
+        "REQ-97"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-audit-and-fix-frontend-src-pages-landingpage-tsx-to-ensure-the-login-form-correctly-calls-the-login-function-from-frontend-src-lib-auth-ts-displays-a-clear-inline-error-message-invalid-username-or-password-on-failure-and-on-success-writes-the-authenticated-session-to-globalchat-session-in-localstorage-with-fields-username-and-isauthenticated-true-before-navigating-to-chatpage-the-create-account-flow-must-call-register-and-then-immediately-log-the-user-in-and-navigate-to-chatpage-wrap-all-localstorage-operations-in-try-catch",
+      "featureTitle": "Audit and fix `frontend/src/pages/LandingPage.tsx` to ensure the login form correctly calls the `login` function from `frontend/src/lib/auth.ts`, displays a clear inline error message ('Invalid username or password.') on failure, and on success writes the authenticated session to `globalchat_session` in localStorage (with fields `username` and `isAuthenticated: true`) before navigating to ChatPage. The Create Account flow must call `register` and then immediately log the user in and navigate to ChatPage. Wrap all localStorage operations in try/catch.",
+      "files": [
+        "frontend/src/pages/LandingPage.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-98"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-audit-frontend-src-app-tsx-to-ensure-that-after-landingpage-sets-globalchat-session-in-localstorage-the-app-immediately-re-renders-and-shows-chatpage-the-synchronous-lazy-usestate-initializer-must-detect-a-valid-authenticated-session-isauthenticated-true-on-mount-and-render-chatpage-directly-additionally-expose-a-stable-onlogin-or-setsession-callback-to-landingpage-so-that-when-the-user-logs-in-the-react-state-in-app-tsx-is-updated-synchronously-not-relying-solely-on-a-page-reload-or-re-mount-to-pick-up-the-new-session",
+      "featureTitle": "Audit `frontend/src/App.tsx` to ensure that after `LandingPage` sets `globalchat_session` in localStorage, the app immediately re-renders and shows `ChatPage`. The synchronous lazy `useState` initializer must detect a valid authenticated session (`isAuthenticated: true`) on mount and render `ChatPage` directly. Additionally, expose a stable `onLogin` or `setSession` callback to `LandingPage` so that when the user logs in, the React state in `App.tsx` is updated synchronously — not relying solely on a page reload or re-mount to pick up the new session.",
+      "files": [
+        "frontend/src/App.tsx"
+      ],
+      "components": [
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-99"
       ],
       "confidence": "high"
     }

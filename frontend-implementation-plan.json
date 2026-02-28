@@ -1,54 +1,58 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix blank page on new tab/window open",
+  "title": "Fix broken login authentication flow",
   "requirements": [
     {
-      "id": "REQ-76",
-      "summary": "Fix blank page issue in App.tsx by ensuring session check on mount correctly reads localStorage and transitions to the appropriate page without rendering a blank screen",
+      "id": "REQ-97",
+      "summary": "Fix password encoding mismatch in auth.ts between registration and login flows",
       "acceptanceCriteria": [
-        "Opening the app URL in a brand new browser tab renders either the LandingPage (if no active session) or the ChatPage (if a valid session exists) — never a blank white or black screen.",
-        "The loading spinner (if shown) always resolves within a short time and transitions to the correct page.",
-        "The session check in App.tsx reads `globalchat_session` from localStorage synchronously or with a brief async check, and sets the correct page state before the first meaningful render.",
-        "The fix works consistently across Chrome, Firefox, and mobile browsers when opening a new tab."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/App.tsx",
-          "operation": "modify",
-          "description": "Refactor the session check logic to ensure it reads `globalchat_session` from localStorage synchronously on mount and immediately sets the correct page state (LandingPage or ChatPage) without leaving the app in a blank loading state. Wrap localStorage access in try-catch to handle corrupted data gracefully. Ensure the loading state resolves quickly and transitions correctly, preventing the app from remaining stuck in a blank state after the session check completes."
-        }
-      ]
-    },
-    {
-      "id": "REQ-77",
-      "summary": "Audit index.html and main.tsx to ensure React app mounts correctly on all page loads without silent failures",
-      "acceptanceCriteria": [
-        "No JavaScript errors appear in the browser console on initial page load in a new tab.",
-        "The React app mounts successfully and renders content without requiring a page refresh.",
-        "The `root` div in `index.html` is correctly targeted by the React entry point."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/index.html",
-          "operation": "modify",
-          "description": "Verify that the root `<div id='root'>` element is present and correctly configured. Add error boundary markup or fallback content if needed to prevent silent mounting failures."
-        }
-      ]
-    },
-    {
-      "id": "REQ-78",
-      "summary": "Ensure auth.ts initializes synchronously without throwing errors by wrapping localStorage operations in try-catch blocks",
-      "acceptanceCriteria": [
-        "The auth module loads without throwing exceptions even if localStorage contains malformed data.",
-        "Errors in `auth.ts` initialization do not prevent the React app from rendering.",
-        "The app renders correctly even if localStorage is empty (fresh browser profile or incognito mode)."
+        "A user who registers with username 'testuser' and password 'abc123' can successfully log in with those exact credentials on the next attempt.",
+        "The `AI.Caffeine` account can be logged into with password '2580'.",
+        "Logging in with a wrong password shows an inline error message such as 'Invalid username or password.' rather than a blank screen or unhandled error.",
+        "All localStorage operations in auth.ts are wrapped in try/catch and never throw uncaught exceptions.",
+        "The encoding scheme used in `register`, `login`, and `seedOwnerAccount` is identical (all use `btoa` for encoding and `atob`-based comparison for verification)."
       ],
       "file_operations": [
         {
           "path": "frontend/src/lib/auth.ts",
           "operation": "modify",
-          "description": "Wrap all localStorage reads and writes in try-catch blocks to prevent initialization failures from crashing the app. Ensure the `seedOwnerAccount` call and any other localStorage operations handle errors gracefully, returning safe defaults when localStorage is unavailable, corrupted, or empty (e.g., fresh browser profile or incognito mode)."
+          "description": "Audit and fix the password encoding scheme to ensure consistency between register, login, and seedOwnerAccount functions. The register function must store credentials using btoa(password). The login function must retrieve the stored credential from globalchat_users in localStorage and compare it against btoa(providedPassword) using the exact same encoding. The seedOwnerAccount function must seed AI.Caffeine with btoa('2580'). Wrap all localStorage.getItem, localStorage.setItem, and JSON.parse/JSON.stringify calls in try/catch blocks to prevent uncaught exceptions. Ensure login returns a clear boolean or error indicator rather than throwing exceptions."
+        }
+      ]
+    },
+    {
+      "id": "REQ-98",
+      "summary": "Fix LandingPage login and registration flows to handle auth correctly and show inline errors",
+      "acceptanceCriteria": [
+        "Submitting the login form with valid credentials navigates the user to ChatPage without a blank screen.",
+        "Submitting the login form with invalid credentials shows 'Invalid username or password.' inline, not a generic 'failed' message.",
+        "Creating a new account and submitting automatically logs the user in and navigates to ChatPage.",
+        "After successful login, `globalchat_session` in localStorage contains `{ username: '...', isAuthenticated: true }`.",
+        "No uncaught errors are thrown during the login or registration flows."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/LandingPage.tsx",
+          "operation": "modify",
+          "description": "Audit and fix the login form submission handler to correctly call the login function from frontend/src/lib/auth.ts and handle its return value. On login failure, display the inline error message 'Invalid username or password.' (exact text). On login success, write the authenticated session to globalchat_session in localStorage with fields { username: string, isAuthenticated: true } before navigating to ChatPage. Audit and fix the Create Account flow to call register from auth.ts, then immediately log the user in by writing the session to globalchat_session, and navigate to ChatPage. Wrap all localStorage writes in try/catch blocks to prevent uncaught exceptions. Ensure the component never throws unhandled errors during form submission."
+        }
+      ]
+    },
+    {
+      "id": "REQ-99",
+      "summary": "Fix App.tsx to synchronously detect session on mount and expose a callback to update session state after login",
+      "acceptanceCriteria": [
+        "After a successful login in LandingPage, the app transitions to ChatPage without requiring a full page reload.",
+        "Opening the app in a new tab while already logged in (valid `globalchat_session` in localStorage) immediately shows ChatPage, not a blank screen.",
+        "Opening the app with no session shows LandingPage immediately.",
+        "The app never renders a blank screen after the initial synchronous render cycle."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/App.tsx",
+          "operation": "modify",
+          "description": "Audit and fix the synchronous lazy useState initializer to detect a valid authenticated session (isAuthenticated: true) from globalchat_session in localStorage on mount and render ChatPage directly if the session exists. If no session or isAuthenticated is false, render LandingPage. Expose a stable onLogin or setSession callback function to LandingPage via props or context so that when the user logs in, the React state in App.tsx is updated synchronously without requiring a page reload or re-mount. Ensure all localStorage reads are wrapped in try/catch and fallback to unauthenticated state on error. The component must never render null or undefined during the initial render cycle."
         }
       ]
     }

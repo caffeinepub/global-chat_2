@@ -1,133 +1,121 @@
-const USERS_KEY = 'globalchat_users';
-const SESSION_KEY = 'globalchat_session';
+// Authentication utility with all localStorage operations wrapped in try-catch
+// Uses btoa() for password encoding — consistent across register, login, and seed.
 
-interface StoredUser {
+export interface UserCredentials {
   username: string;
   passwordHash: string;
 }
 
-interface Session {
-  username: string;
-  isAuthenticated: boolean;
+const STORAGE_KEY = "globalchat_users";
+const SESSION_KEY = "globalchat_session";
+
+function getUsers(): UserCredentials[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as UserCredentials[];
+  } catch {
+    return [];
+  }
 }
 
-// Simple encoding — not cryptographic, just obfuscation for localStorage
+function saveUsers(users: UserCredentials[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 function encodePassword(password: string): string {
   try {
+    return btoa(password);
+  } catch {
+    // btoa can fail on non-latin1 chars; fall back to a safe encoding
     return btoa(encodeURIComponent(password));
-  } catch {
-    return password;
   }
 }
 
-function verifyPassword(input: string, stored: string): boolean {
-  return encodePassword(input) === stored;
-}
-
-function loadUsers(): Record<string, StoredUser> {
+export function registerUser(
+  username: string,
+  password: string
+): { success: boolean; error?: string } {
   try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, StoredUser>;
-  } catch {
-    return {};
-  }
-}
-
-function saveUsers(users: Record<string, StoredUser>): void {
-  try {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch {
-    // localStorage unavailable (e.g., private browsing with storage blocked)
-  }
-}
-
-// Seed the AI.Caffeine owner account with password '2580' if it doesn't already exist
-function seedAICaffeineAccount(): void {
-  try {
-    const users = loadUsers();
-    const key = 'ai.caffeine';
-    if (!users[key]) {
-      users[key] = {
-        username: 'AI.Caffeine',
-        passwordHash: encodePassword('2580'),
-      };
-      saveUsers(users);
+    if (!username || !username.trim()) {
+      return { success: false, error: "Username is required." };
     }
-  } catch {
-    // Silently ignore — app still works without the seed
-  }
-}
-
-// Run seed on module load so the account is always available
-try {
-  seedAICaffeineAccount();
-} catch {
-  // Prevent module-level crash from blocking app render
-}
-
-export function createAccount(username: string, password: string): { success: boolean; error?: string } {
-  try {
-    const trimmed = username.trim();
-    if (!trimmed) return { success: false, error: 'Username is required.' };
-    if (trimmed.length > 32) return { success: false, error: 'Username must be 32 characters or less.' };
-    if (password.length < 4) return { success: false, error: 'Password must be at least 4 characters.' };
-
-    const users = loadUsers();
-    if (users[trimmed.toLowerCase()]) {
-      return { success: false, error: 'That username is already taken.' };
+    if (!password) {
+      return { success: false, error: "Password is required." };
     }
-
-    users[trimmed.toLowerCase()] = {
-      username: trimmed,
+    const users = getUsers();
+    const exists = users.some(
+      (u) => u.username.toLowerCase() === username.trim().toLowerCase()
+    );
+    if (exists) {
+      return { success: false, error: "Username already taken." };
+    }
+    const newUser: UserCredentials = {
+      username: username.trim(),
       passwordHash: encodePassword(password),
     };
+    users.push(newUser);
     saveUsers(users);
     return { success: true };
-  } catch {
-    return { success: false, error: 'An unexpected error occurred. Please try again.' };
+  } catch (e) {
+    console.error("auth.ts: registerUser error", e);
+    return { success: false, error: "Registration failed. Please try again." };
   }
 }
 
-export function loginUser(username: string, password: string): { success: boolean; error?: string; resolvedUsername?: string } {
+export function loginUser(
+  username: string,
+  password: string
+): { success: boolean; error?: string } {
   try {
-    const trimmed = username.trim();
-    if (!trimmed) return { success: false, error: 'Username is required.' };
-    if (!password) return { success: false, error: 'Password is required.' };
-
-    const users = loadUsers();
-    const record = users[trimmed.toLowerCase()];
-    if (!record) {
-      return { success: false, error: 'No account found with that username.' };
+    if (!username || !password) {
+      return { success: false, error: "Invalid username or password." };
     }
-    if (!verifyPassword(password, record.passwordHash)) {
-      return { success: false, error: 'Incorrect password.' };
+    const users = getUsers();
+    const encodedInput = encodePassword(password);
+    const user = users.find(
+      (u) =>
+        u.username.toLowerCase() === username.trim().toLowerCase() &&
+        u.passwordHash === encodedInput
+    );
+    if (!user) {
+      return { success: false, error: "Invalid username or password." };
     }
-
-    return { success: true, resolvedUsername: record.username };
-  } catch {
-    return { success: false, error: 'An unexpected error occurred. Please try again.' };
+    return { success: true };
+  } catch (e) {
+    console.error("auth.ts: loginUser error", e);
+    return { success: false, error: "Invalid username or password." };
   }
 }
 
-export function setActiveSession(username: string): void {
-  try {
-    const session: Session = { username, isAuthenticated: true };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  } catch {
-    // localStorage unavailable
-  }
-}
-
-export function getActiveSession(): Session | null {
+export function getSession(): { isAuthenticated: boolean; username?: string } {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const session = JSON.parse(raw) as Session;
-    if (!session.isAuthenticated || !session.username) return null;
-    return session;
+    if (!raw) return { isAuthenticated: false };
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.isAuthenticated === true && parsed.username) {
+      return { isAuthenticated: true, username: parsed.username };
+    }
+    return { isAuthenticated: false };
   } catch {
-    return null;
+    return { isAuthenticated: false };
+  }
+}
+
+export function saveSession(username: string): void {
+  try {
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ isAuthenticated: true, username })
+    );
+  } catch {
+    // ignore storage errors
   }
 }
 
@@ -135,6 +123,33 @@ export function clearSession(): void {
   try {
     localStorage.removeItem(SESSION_KEY);
   } catch {
-    // ignore
+    // ignore storage errors
   }
 }
+
+// Seed the AI.Caffeine owner account on module load.
+// Password is "2580". Always ensures the stored hash matches btoa("2580").
+function seedOwnerAccount(): void {
+  try {
+    const users = getUsers();
+    const ownerUsername = "AI.Caffeine";
+    const ownerHash = encodePassword("2580");
+    const ownerIndex = users.findIndex(
+      (u) => u.username === ownerUsername
+    );
+    if (ownerIndex === -1) {
+      // Account doesn't exist yet — create it
+      users.push({ username: ownerUsername, passwordHash: ownerHash });
+      saveUsers(users);
+    } else if (users[ownerIndex].passwordHash !== ownerHash) {
+      // Account exists but has wrong hash (stale seed from old encoding) — fix it
+      users[ownerIndex] = { username: ownerUsername, passwordHash: ownerHash };
+      saveUsers(users);
+    }
+    // If hash already matches, nothing to do
+  } catch (e) {
+    console.error("auth.ts: seedOwnerAccount error", e);
+  }
+}
+
+seedOwnerAccount();

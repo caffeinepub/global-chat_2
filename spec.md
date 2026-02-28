@@ -1,12 +1,15 @@
 # Specification
 
 ## Summary
-**Goal:** Fix the blank page issue that occurs when the Global Chat app is opened in a new tab or window.
+**Goal:** Fix the broken login authentication flow in the Global Chat frontend so that registration, login, and session persistence all work correctly end-to-end.
 
 **Planned changes:**
-- Audit `frontend/src/App.tsx` to ensure the session check on mount correctly reads `globalchat_session` from localStorage and transitions to either `LandingPage` or `ChatPage` without rendering a blank screen
-- Ensure the loading/spinner state always resolves on initial render and never leaves the app stuck in a blank state
-- Audit `frontend/index.html` to verify the root `<div id="root">` is always present and correctly targeted
-- Wrap localStorage reads/writes in `frontend/src/lib/auth.ts` with try-catch blocks to prevent initialization failures (e.g., malformed data, empty storage) from crashing the app
+- Fix `frontend/src/lib/auth.ts` so the `login` function encodes passwords with `btoa` consistently with `register`, ensuring credential comparison works correctly
+- Ensure `seedOwnerAccount` seeds the `AI.Caffeine` account with `btoa('2580')` without overwriting other users
+- Wrap all localStorage reads and writes in `auth.ts` in try/catch blocks
+- Fix `frontend/src/pages/LandingPage.tsx` so the login form calls `login` from `auth.ts`, shows `'Invalid username or password.'` inline on failure, writes a valid `globalchat_session` (`{ username, isAuthenticated: true }`) to localStorage on success, and navigates to ChatPage
+- Fix the Create Account flow in `LandingPage.tsx` to call `register` then immediately log in and navigate to ChatPage
+- Wrap all localStorage operations in `LandingPage.tsx` in try/catch
+- Fix `frontend/src/App.tsx` to synchronously detect a valid authenticated session on mount and render ChatPage directly, and expose a stable `onLogin`/`setSession` callback to `LandingPage` so React state updates immediately on login without requiring a page reload
 
-**User-visible outcome:** Opening the app in a new tab or window always renders either the Landing Page or Chat Page correctly, with no blank screen and no console errors on initial load.
+**User-visible outcome:** Users can register and log in with their credentials, the `AI.Caffeine` account works with password `2580`, invalid credentials show a clear error message, and the app transitions to ChatPage immediately after login without blank screens or page reloads.
