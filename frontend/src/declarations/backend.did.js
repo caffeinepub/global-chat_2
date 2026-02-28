@@ -8,10 +8,44 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const idlService = IDL.Service({});
+export const Time = IDL.Int;
+export const ChatMessage = IDL.Record({
+  'id' : IDL.Text,
+  'username' : IDL.Text,
+  'isSystem' : IDL.Bool,
+  'text' : IDL.Text,
+  'isForced' : IDL.Bool,
+  'isBigMessage' : IDL.Bool,
+  'timestamp' : Time,
+  'isBroadcast' : IDL.Bool,
+  'isBot' : IDL.Bool,
+});
+
+export const idlService = IDL.Service({
+  'getMessages' : IDL.Func([Time], [IDL.Vec(ChatMessage)], ['query']),
+  'postMessage' : IDL.Func([ChatMessage], [], []),
+});
 
 export const idlInitArgs = [];
 
-export const idlFactory = ({ IDL }) => { return IDL.Service({}); };
+export const idlFactory = ({ IDL }) => {
+  const Time = IDL.Int;
+  const ChatMessage = IDL.Record({
+    'id' : IDL.Text,
+    'username' : IDL.Text,
+    'isSystem' : IDL.Bool,
+    'text' : IDL.Text,
+    'isForced' : IDL.Bool,
+    'isBigMessage' : IDL.Bool,
+    'timestamp' : Time,
+    'isBroadcast' : IDL.Bool,
+    'isBot' : IDL.Bool,
+  });
+  
+  return IDL.Service({
+    'getMessages' : IDL.Func([Time], [IDL.Vec(ChatMessage)], ['query']),
+    'postMessage' : IDL.Func([ChatMessage], [], []),
+  });
+};
 
 export const init = ({ IDL }) => { return []; };

@@ -1,80 +1,65 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix shutdown black overlay and startup green screen for non-admin users",
+  "title": "Fix cross-device messaging: replace BroadcastChannel with backend-persisted messages",
   "requirements": [
     {
-      "id": "REQ-33",
-      "summary": "Fix ShutdownOverlay to display full-screen black overlay with countdown timer for non-owner users during server shutdown",
+      "id": "REQ-37",
+      "summary": "Update useBroadcastMessages hook to use ICP backend as primary message store with polling for cross-device sync",
       "acceptanceCriteria": [
-        "When AI.Caffeine triggers a shutdown from the Admin Panel, any other logged-in user immediately sees a full-screen black overlay covering the entire chat UI",
-        "The overlay displays '🔴 Server Shut Down' as a large title",
-        "The overlay displays the shutdown message entered by the admin (if any)",
-        "The overlay displays a live countdown timer in mm:ss format that updates every second",
-        "The countdown timer accurately reflects the remaining time based on shutdownUntil Unix timestamp in globalchat_server_state",
-        "The message input bar is completely inaccessible/blocked while the overlay is active",
-        "The overlay is NOT shown to AI.Caffeine (the owner)",
-        "The overlay appears immediately when the BroadcastChannel globalchat_server_control broadcasts the shutdown event, without requiring a page reload",
-        "The overlay disappears automatically when the countdown reaches zero"
+        "Messages posted from a mobile device appear on a PC browser within ~2 seconds",
+        "Messages posted on PC appear on mobile within ~2 seconds",
+        "Polling interval is approximately 2 seconds",
+        "Existing BroadcastChannel behavior is preserved for same-browser tab sync",
+        "No duplicate messages appear in the chat when both BroadcastChannel and polling deliver the same message (deduplicate by message id)",
+        "localStorage is still updated for offline/fallback display on reload"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/ShutdownOverlay.tsx",
+          "path": "frontend/src/hooks/useBroadcastMessages.ts",
           "operation": "modify",
-          "description": "Fix the ShutdownOverlay component to properly display a full-screen black overlay with a large '🔴 Server Shut Down' title, the shutdownMessage from localStorage, and a live countdown timer formatted as mm:ss that updates every second. Ensure the overlay covers the entire viewport with z-index high enough to block all interaction. Add proper state management for the countdown that decrements every second based on shutdownUntil timestamp. Verify the component correctly reads shutdownMessage from globalchat_server_state localStorage and handles cases where no message is provided."
-        },
-        {
-          "path": "frontend/src/pages/ChatPage.tsx",
-          "operation": "modify",
-          "description": "Fix the integration of ShutdownOverlay in ChatPage so it conditionally renders when the server is shut down (isShutdown is true and current time is before shutdownUntil) AND the current user is not AI.Caffeine. Ensure the overlay is positioned to cover all chat UI elements including the message input bar, making interaction completely impossible while active. Wire the overlay visibility to React state derived from useServerState hook so it re-renders correctly when server state changes via BroadcastChannel."
+          "description": "Replace localStorage-only storage with backend actor integration. On mount and every 2 seconds, poll getMessages(since) from the backend actor to fetch new messages and merge them into React state. When sending a message, call postMessage on the backend actor to persist it. Continue using BroadcastChannel for same-browser tab sync as a secondary optimization. Implement deduplication by message id to prevent duplicates when both BroadcastChannel and polling deliver the same message. Track the latest message timestamp to pass as the 'since' parameter in subsequent polls. Keep localStorage updates for offline/fallback display on reload."
         }
       ]
     },
     {
-      "id": "REQ-34",
-      "summary": "Fix StartupOverlay to display full-screen green overlay for exactly 5 seconds during server startup for non-owner users",
+      "id": "REQ-38",
+      "summary": "Add unique id field to ChatMessage interface and ensure all message creation points generate unique ids",
       "acceptanceCriteria": [
-        "When the server transitions from shutdown to running, all open tabs for non-owner users immediately show a full-screen green overlay",
-        "The overlay displays '🟢 Server Starting Up...' text clearly",
-        "The green overlay is shown for exactly 5 seconds before fading out",
-        "After the 5-second overlay, the normal chat UI is fully restored and users can send messages again",
-        "The startup overlay is NOT shown to AI.Caffeine",
-        "The startup overlay triggers both when the admin manually clicks 'Start Up Server' and when the shutdown timer expires naturally",
-        "The transition is handled via the globalchat_server_control BroadcastChannel so all open tabs react simultaneously"
+        "ChatMessage interface includes `id: string` as a required field",
+        "Every message sent (user, bot, admin, system) has a unique non-empty id assigned at creation time",
+        "Polling deduplication logic uses the id field to avoid showing the same message twice"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/StartupOverlay.tsx",
+          "path": "frontend/src/types/chat.ts",
           "operation": "modify",
-          "description": "Fix the StartupOverlay component to display a full-screen green overlay with '🟢 Server Starting Up...' text and ensure it automatically dismisses after exactly 5 seconds. Add proper timer logic that triggers the fade-out animation after 5 seconds and cleans up the timer on unmount. Ensure the overlay covers the entire viewport with appropriate z-index and green background styling."
+          "description": "Add a required `id: string` field to the ChatMessage interface. This field will store a unique identifier (UUID or timestamp+random string) for each message, used for deduplication when polling from the backend."
         },
         {
-          "path": "frontend/src/pages/ChatPage.tsx",
+          "path": "frontend/src/hooks/useBroadcastMessages.ts",
           "operation": "modify",
-          "description": "Fix the integration of StartupOverlay in ChatPage to trigger when the server transitions from shutdown to running state. Ensure the overlay is shown for non-owner users (exclude AI.Caffeine) when a startup event is received via BroadcastChannel or when the shutdown timer expires naturally. Wire the overlay to React state that responds to server state changes from useServerState hook. Ensure the overlay appears for exactly 5 seconds before being dismissed, and that after dismissal the normal chat UI is fully interactive again."
-        }
-      ]
-    },
-    {
-      "id": "REQ-35",
-      "summary": "Audit and fix useServerState hook and ChatPage to ensure correct server state synchronization and overlay rendering",
-      "acceptanceCriteria": [
-        "If a non-owner user opens the chat while the server is already shut down, the black overlay is shown immediately on page load",
-        "If a non-owner user's tab is open when a shutdown is triggered, the black overlay appears in real time via BroadcastChannel without a reload",
-        "The countdown timer in the overlay is accurate and starts from the correct remaining time",
-        "When the server startup event is received via BroadcastChannel, the black overlay is replaced by the green startup overlay for 5 seconds",
-        "No stale state persists between shutdown and startup transitions"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/hooks/useServerState.ts",
-          "operation": "modify",
-          "description": "Fix the useServerState hook to correctly read server state from globalchat_server_state localStorage on component mount and immediately determine if the shutdown overlay should be shown (isShutdown is true AND Date.now() < shutdownUntil). Ensure the hook properly subscribes to the globalchat_server_control BroadcastChannel and updates React state in real time when shutdown or startup events are broadcast. Add proper state management to track both shutdown and startup phases so the component can trigger the appropriate overlay. Ensure the countdown timer logic accurately calculates remaining time and updates every second. Clean up BroadcastChannel subscriptions and timers on unmount to prevent memory leaks."
+          "description": "Update the sendMessage function to generate and assign a unique id (using crypto.randomUUID() or Date.now() + Math.random()) to every new message before persisting to backend or localStorage. Ensure this applies to all message types: user messages, bot responses, admin broadcasts, force text, big messages, and system messages."
         },
         {
-          "path": "frontend/src/pages/ChatPage.tsx",
+          "path": "frontend/src/hooks/useAIMentionDetector.ts",
           "operation": "modify",
-          "description": "Audit and fix ChatPage to ensure server state from useServerState hook is correctly used to derive overlay visibility in React state (not direct localStorage reads). Ensure that on initial page load, if the server is already shut down, the ShutdownOverlay is immediately rendered for non-owner users. Verify that when BroadcastChannel events trigger state updates in useServerState, React re-renders correctly and shows/hides overlays as appropriate. Ensure proper transition from shutdown (black overlay) to startup (green overlay for 5 seconds) to normal chat UI, with no stale state persisting between transitions. Add username checks to ensure AI.Caffeine never sees either overlay."
+          "description": "When creating bot response messages for @G.ai mentions, ensure a unique id is generated and assigned to each ChatMessage before calling sendMessage. Use crypto.randomUUID() or a similar unique identifier generation method."
+        },
+        {
+          "path": "frontend/src/hooks/useAdminCommands.ts",
+          "operation": "modify",
+          "description": "For all admin command functions that create system messages (ban warnings, mute notifications, pin announcements, etc.), ensure each ChatMessage is assigned a unique id before being sent. Update all message creation points to include id generation."
+        },
+        {
+          "path": "frontend/src/hooks/useChatModeration.ts",
+          "operation": "modify",
+          "description": "When auto-banning users and posting warning bot messages, ensure the warning ChatMessage includes a unique id field before being sent to the chat."
+        },
+        {
+          "path": "frontend/src/components/AdminPanel.tsx",
+          "operation": "modify",
+          "description": "For admin actions that create broadcast messages, big messages, or force-send messages through the admin panel, ensure each ChatMessage includes a unique id field at creation time before being passed to sendMessage or broadcast functions."
         }
       ]
     }

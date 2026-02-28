@@ -6,4 +6,6 @@ export interface ChatMessage {
   isBot?: boolean;
   isBigMessage?: boolean;
   isForced?: boolean;
+  isSystem?: boolean;
+  isBroadcast?: boolean;
 }

@@ -1,86 +1,77 @@
 {
   "kind": "build_request",
-  "title": "Fix shutdown black overlay and startup green screen for non-admin users",
+  "title": "Fix cross-device messaging: replace BroadcastChannel with backend-persisted messages",
   "projectName": "Global Chat",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-33",
-      "text": "Fix `ShutdownOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server is shut down (`globalchat_server_state` has `isShutdown: true` and current time is before `shutdownUntil`), non-owner users (any username that is not `AI.Caffeine`) see a full-screen black overlay rendered on top of the entire chat UI. The overlay must display: (1) a large '🔴 Server Shut Down' title, (2) the `shutdownMessage` from localStorage if provided, (3) a live countdown timer formatted as mm:ss that decrements every second showing time remaining until `shutdownUntil`. All message input interaction must be completely blocked while the overlay is active.",
-      "target": "frontend",
+      "id": "REQ-36",
+      "text": "Implement a backend-persisted message store in `backend/main.mo`. Add a stable array of chat messages (storing id, username, text, timestamp, and all existing ChatMessage fields: isBigMessage, isForced, isBot, isSystem, isBroadcast). Expose Motoko query and update functions: `getMessages(since: Nat) : async [ChatMessage]` to fetch messages newer than a given timestamp, and `postMessage(msg: ChatMessage) : async ()` to store a new message (cap the store at 500 most recent messages).",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-user-cross-device"
         ],
         "quotes": [
-          "screen not going black and green with text of remaining time of shutdown not coming for non admin users"
+          "after publishing i opened in my mobile and said something but in pc that message is not showing"
         ]
       },
       "acceptanceCriteria": [
-        "When `AI.Caffeine` triggers a shutdown from the Admin Panel, any other logged-in user immediately sees a full-screen black overlay covering the entire chat UI",
-        "The overlay displays '🔴 Server Shut Down' as a large title",
-        "The overlay displays the shutdown message entered by the admin (if any)",
-        "The overlay displays a live countdown timer in mm:ss format that updates every second",
-        "The countdown timer accurately reflects the remaining time based on `shutdownUntil` Unix timestamp in `globalchat_server_state`",
-        "The message input bar is completely inaccessible/blocked while the overlay is active",
-        "The overlay is NOT shown to `AI.Caffeine` (the owner)",
-        "The overlay appears immediately when the BroadcastChannel `globalchat_server_control` broadcasts the shutdown event, without requiring a page reload",
-        "The overlay disappears automatically when the countdown reaches zero"
+        "backend/main.mo defines a stable var for chat message storage",
+        "getMessages query accepts a since timestamp and returns only messages newer than it",
+        "postMessage update function appends a message to stable storage",
+        "Message store is capped at 500 entries (oldest pruned first)",
+        "All fields of the ChatMessage interface (isBigMessage, isForced, isBot, isSystem, etc.) are represented in the Motoko record type"
       ]
     },
     {
-      "id": "REQ-34",
-      "text": "Fix `StartupOverlay.tsx` and its integration in `ChatPage.tsx` so that when the server transitions from shutdown to running (either via the 'Start Up Server' admin command or natural timer expiry), all non-owner users (`AI.Caffeine` excluded) immediately see a full-screen green overlay displaying '🟢 Server Starting Up...' for exactly 5 seconds. After 5 seconds the overlay fades out and the normal chat UI is fully restored. This must work across all currently open browser tabs for non-owner users.",
+      "id": "REQ-37",
+      "text": "Update `frontend/src/hooks/useBroadcastMessages.ts` to use the ICP backend as the primary message store. On mount and on a polling interval (every 2 seconds), call `getMessages(since)` on the backend actor to fetch new messages and merge them into local React state. When sending a message, call `postMessage` on the backend actor to persist it, in addition to (or instead of) writing to localStorage. Continue broadcasting via BroadcastChannel for same-browser tab sync as a secondary optimization, but the backend must be the source of truth for cross-device delivery.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-user-cross-device"
         ],
         "quotes": [
-          "screen not going black and green with text of remaining time of shutdown not coming for non admin users"
+          "after publishing i opened in my mobile and said something but in pc that message is not showing"
         ]
       },
       "acceptanceCriteria": [
-        "When the server transitions from shutdown to running, all open tabs for non-owner users immediately show a full-screen green overlay",
-        "The overlay displays '🟢 Server Starting Up...' text clearly",
-        "The green overlay is shown for exactly 5 seconds before fading out",
-        "After the 5-second overlay, the normal chat UI is fully restored and users can send messages again",
-        "The startup overlay is NOT shown to `AI.Caffeine`",
-        "The startup overlay triggers both when the admin manually clicks 'Start Up Server' and when the shutdown timer expires naturally",
-        "The transition is handled via the `globalchat_server_control` BroadcastChannel so all open tabs react simultaneously"
+        "Messages posted from a mobile device appear on a PC browser within ~2 seconds",
+        "Messages posted on PC appear on mobile within ~2 seconds",
+        "Polling interval is approximately 2 seconds",
+        "Existing BroadcastChannel behavior is preserved for same-browser tab sync",
+        "No duplicate messages appear in the chat when both BroadcastChannel and polling deliver the same message (deduplicate by message id)",
+        "localStorage is still updated for offline/fallback display on reload"
       ]
     },
     {
-      "id": "REQ-35",
-      "text": "Audit and fix the `useServerState` hook and `ChatPage.tsx` to ensure the server state is correctly read from `globalchat_server_state` localStorage on initial page load and kept in sync via the `globalchat_server_control` BroadcastChannel. Specifically: (1) on component mount, read the current server state from localStorage and immediately apply the shutdown overlay if `isShutdown` is true and `Date.now() < shutdownUntil`; (2) subscribe to the BroadcastChannel for real-time state changes and update React state accordingly; (3) ensure the shutdown/startup overlay visibility is derived from React state (not just localStorage reads) so React re-renders correctly when state changes.",
+      "id": "REQ-38",
+      "text": "Ensure the `ChatMessage` TypeScript interface in `frontend/src/types/chat.ts` has an `id` field (string, required) that is unique per message (e.g., a UUID or timestamp+random string). All message creation points (user sends, bot responses, admin broadcasts, force text, big messages, system messages) must generate and assign a unique `id` before persisting. This id is used for deduplication when polling from the backend.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "screen not going black and green with text of remaining time of shutdown not coming for non admin users"
+          "msg-user-cross-device"
         ]
       },
       "acceptanceCriteria": [
-        "If a non-owner user opens the chat while the server is already shut down, the black overlay is shown immediately on page load",
-        "If a non-owner user's tab is open when a shutdown is triggered, the black overlay appears in real time via BroadcastChannel without a reload",
-        "The countdown timer in the overlay is accurate and starts from the correct remaining time",
-        "When the server startup event is received via BroadcastChannel, the black overlay is replaced by the green startup overlay for 5 seconds",
-        "No stale state persists between shutdown and startup transitions"
+        "ChatMessage interface includes `id: string` as a required field",
+        "Every message sent (user, bot, admin, system) has a unique non-empty id assigned at creation time",
+        "Polling deduplication logic uses the id field to avoid showing the same message twice"
       ]
     }
   ],
   "constraints": [
-    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
-    "The overlay must not appear for the AI.Caffeine owner account under any circumstances",
-    "The existing localStorage key globalchat_server_state and BroadcastChannel name globalchat_server_control must be preserved"
+    "Do not modify any file under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
+    "All Motoko logic must remain in backend/main.mo as a single actor",
+    "BroadcastChannel + localStorage behavior must be preserved as a secondary same-browser sync layer — do not remove it",
+    "Polling interval must not be lower than 1 second to avoid excessive canister calls"
   ],
   "nonGoals": [
-    "Changing the admin shutdown command UI or logic",
-    "Modifying the OwnerShutdownBanner shown to AI.Caffeine",
-    "Adding new admin commands",
-    "Changing the authentication system"
+    "WebSockets or real-time push from backend to frontend",
+    "Changing the visual design or layout of the chat UI",
+    "Modifying authentication or admin panel logic",
+    "Migrating existing localStorage message history to the backend on first load"
   ],
   "imageRequirements": {
     "required": [],

@@ -89,10 +89,52 @@ export class ExternalBlob {
         return this;
     }
 }
+export interface ChatMessage {
+    id: string;
+    username: string;
+    isSystem: boolean;
+    text: string;
+    isForced: boolean;
+    isBigMessage: boolean;
+    timestamp: Time;
+    isBroadcast: boolean;
+    isBot: boolean;
+}
+export type Time = bigint;
 export interface backendInterface {
+    getMessages(since: Time): Promise<Array<ChatMessage>>;
+    postMessage(msg: ChatMessage): Promise<void>;
 }
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
+    async getMessages(arg0: Time): Promise<Array<ChatMessage>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMessages(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMessages(arg0);
+            return result;
+        }
+    }
+    async postMessage(arg0: ChatMessage): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.postMessage(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.postMessage(arg0);
+            return result;
+        }
+    }
 }
 export interface CreateActorOptions {
     agent?: Agent;

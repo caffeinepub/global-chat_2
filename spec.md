@@ -1,13 +1,16 @@
 # Specification
 
 ## Summary
-**Goal:** Fix the shutdown black overlay and startup green screen so they correctly appear for non-admin (non-`AI.Caffeine`) users in the Global Chat application.
+**Goal:** Fix cross-device messaging by replacing the BroadcastChannel-only approach with a backend-persisted message store, so messages sent on one device appear on all other devices.
 
 **Planned changes:**
-- Fix `ShutdownOverlay.tsx` to render a full-screen black overlay for non-owner users when the server is shut down, displaying a '🔴 Server Shut Down' title, the admin's shutdown message, and a live mm:ss countdown timer until `shutdownUntil`; block all message input while active
-- Fix `StartupOverlay.tsx` to render a full-screen green overlay displaying '🟢 Server Starting Up...' for exactly 5 seconds when the server transitions from shutdown to running, then fade out and restore normal chat UI
-- Audit and fix the `useServerState` hook and `ChatPage.tsx` to correctly read `globalchat_server_state` from localStorage on initial page load and apply the shutdown overlay immediately if the server is already shut down
-- Ensure both overlays are driven by React state kept in sync via the `globalchat_server_control` BroadcastChannel so all open non-owner tabs react in real time without a page reload
-- Ensure neither overlay is ever shown to the `AI.Caffeine` owner account
+- Add a stable chat message store in `backend/main.mo` with `getMessages(since: Nat)` and `postMessage(msg: ChatMessage)` functions, capped at 500 messages
+- Add all ChatMessage fields (isBigMessage, isForced, isBot, isSystem, isBroadcast, id) to the Motoko record type
+- Add a required `id: string` field to the `ChatMessage` TypeScript interface in `frontend/src/types/chat.ts`
+- Ensure every message creation point (user, bot, admin, system, broadcast) generates a unique id
+- Update `frontend/src/hooks/useBroadcastMessages.ts` to poll the backend every 2 seconds via `getMessages(since)` and merge new messages into local state
+- Update message sending to call `postMessage` on the backend actor to persist messages
+- Deduplicate messages by `id` to prevent duplicates from both polling and BroadcastChannel delivery
+- Preserve existing BroadcastChannel and localStorage behavior as a secondary same-browser sync layer
 
-**User-visible outcome:** Non-admin users will immediately see a black countdown overlay when the server is shut down and a green startup screen when it comes back online, both working across all open tabs in real time without requiring a page reload.
+**User-visible outcome:** Messages sent from a mobile device appear on a PC (and vice versa) within approximately 2 seconds, enabling true cross-device chat.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 15,
+  "projectStateVersion": 17,
   "summary": "A Discord-inspired global chat website called \"Global Chat\" with real-time messaging via BroadcastChannel + localStorage, AI chatbot integration (G.AI Chat panel and @G.ai mentions), secret emoji picker (Ctrl+Alt), clear chat (Ctrl+C), OpenAI-powered auto-moderation with 10-minute bans, a moderation ban log/admin panel, user authentication (username + password), logout button, a special verified owner account 'AI.Caffeine' with hardcoded password '2580' and full admin privileges, extended admin commands (ban, mute, unmute, unban, big message broadcast, force text), 25 additional admin commands, and a server shutdown/startup system where the owner can shut down the server for up to 50 minutes (screen goes black for others with a timer, owner sees normal UI with shutdown indicator), and a startup command that shows a green 'starting up' screen for 5 seconds before returning to normal.",
   "architectural_notes": [
     "Uses BroadcastChannel API + localStorage (key: globalchat_messages) for real-time cross-tab messaging with no backend",
@@ -11,11 +11,13 @@
     "User accounts use username + password stored in localStorage; 'AI.Caffeine' is hardcoded as the verified owner with exclusive admin panel access",
     "AI.Caffeine account has a hardcoded password '2580' and must always exist in the system",
     "Admin-only commands (ban, mute, unmute, unban, broadcast big message, force-text) are exclusive to AI.Caffeine; mute state stored in localStorage under globalchat_mutes",
-    "Server shutdown state stored in localStorage under globalchat_shutdown as { active: boolean, endsAt: timestamp, startedBy: string }; BroadcastChannel used to notify all tabs instantly of shutdown/startup events"
+    "Server shutdown state stored in localStorage under globalchat_shutdown as { active: boolean, endsAt: timestamp, startedBy: string }; BroadcastChannel used to notify all tabs instantly of shutdown/startup events",
+    "BroadcastChannel API only works within the same browser on the same device — cross-device sync requires a backend or external storage solution"
   ],
   "known_issues": [
     "G.AI Chat panel not functioning properly — needs fix and model switch to OpenAI ChatGPT",
-    "Shutdown black screen overlay and green startup screen with countdown timer not appearing for non-admin users"
+    "Shutdown black screen overlay and green startup screen with countdown timer not appearing for non-admin users",
+    "Messages sent on mobile are not visible on PC — BroadcastChannel does not work cross-device, only cross-tab on the same browser"
   ],
   "isFixRequest": true,
   "existing_features": [
@@ -298,6 +300,22 @@
         "REQ-35"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-update-frontend-src-hooks-usebroadcastmessages-ts-to-use-the-icp-backend-as-the-primary-message-store-on-mount-and-on-a-polling-interval-every-2-seconds-call-getmessages-since-on-the-backend-actor-to-fetch-new-messages-and-merge-them-into-local-react-state-when-sending-a-message-call-postmessage-on-the-backend-actor-to-persist-it-in-addition-to-or-instead-of-writing-to-localstorage-continue-broadcasting-via-broadcastchannel-for-same-browser-tab-sync-as-a-secondary-optimization-but-the-backend-must-be-the-source-of-truth-for-cross-device-delivery",
+      "title": "Update `frontend/src/hooks/useBroadcastMessages.ts` to use the ICP backend as the primary message store. On mount and on a polling interval (every 2 seconds), call `getMessages(since)` on the backend actor to fetch new messages and merge them into local React state. When sending a message, call `postMessage` on the backend actor to persist it, in addition to (or instead of) writing to localStorage. Continue broadcasting via BroadcastChannel for same-browser tab sync as a secondary optimization, but the backend must be the source of truth for cross-device delivery.",
+      "reqIds": [
+        "REQ-37"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-the-chatmessage-typescript-interface-in-frontend-src-types-chat-ts-has-an-id-field-string-required-that-is-unique-per-message-e-g-a-uuid-or-timestamp-random-string-all-message-creation-points-user-sends-bot-responses-admin-broadcasts-force-text-big-messages-system-messages-must-generate-and-assign-a-unique-id-before-persisting-this-id-is-used-for-deduplication-when-polling-from-the-backend",
+      "title": "Ensure the `ChatMessage` TypeScript interface in `frontend/src/types/chat.ts` has an `id` field (string, required) that is unique per message (e.g., a UUID or timestamp+random string). All message creation points (user sends, bot responses, admin broadcasts, force text, big messages, system messages) must generate and assign a unique `id` before persisting. This id is used for deduplication when polling from the backend.",
+      "reqIds": [
+        "REQ-38"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -359,6 +377,20 @@
       "id": "AR-10",
       "summary": "Add server shutdown/startup commands: owner can shut down server for a configurable duration (max 50 min); during shutdown, non-owners see a black screen with a countdown timer and cannot send messages; owner sees normal UI with a 'server shut down' indicator and an option to start up early; on startup, all users see a green 'Starting up...' screen for 5 seconds before returning to normal",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-11",
+      "summary": "Fix cross-device messaging: messages sent on mobile are not appearing on PC (cross-tab/cross-device sync issue with BroadcastChannel + localStorage)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-12",
+      "summary": "Implement a backend-persisted message store in `backend/main.mo`. Add a stable array of chat messages (storing id, username, text, timestamp, and all existing ChatMessage fields: isBigMessage, isForced, isBot, isSystem, isBroadcast). Expose Motoko query and update functions: `getMessages(since: Nat) : async [ChatMessage]` to fetch messages newer than a given timestamp, and `postMessage(msg: ChatMessage) : async ()` to store a new message (cap the store at 500 most recent messages).",
+      "reqIds": [
+        "REQ-36"
+      ],
       "status": "pending"
     }
   ],
