@@ -1,132 +1,174 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Smile } from "lucide-react";
+import { useMuteManager } from "@/hooks/useMuteManager";
+import { useBanManager } from "@/hooks/useBanManager";
+import { useSlowMode } from "@/hooks/useSlowMode";
+import { useChatLock } from "@/hooks/useChatLock";
 
-interface Props {
+interface MessageInputBarProps {
   onSend: (text: string) => void;
-  currentUsername: string;
+  onEmojiPickerToggle: () => void;
+  username: string;
   disabled?: boolean;
 }
 
-function getFrozenExpiry(username: string): number | null {
-  try {
-    const raw = localStorage.getItem('globalchat_frozen');
-    if (!raw) return null;
-    const frozen: Record<string, number> = JSON.parse(raw);
-    const expiry = frozen[username];
-    if (!expiry || Date.now() > expiry) return null;
-    return expiry;
-  } catch {
-    return null;
-  }
-}
+const OWNER = "AI.Caffeine";
+const BOT_NAME = "G.AI 🤖";
 
-function getBanExpiry(username: string): number | null {
-  try {
-    const raw = localStorage.getItem('globalchat_bans');
-    if (!raw) return null;
-    const bans: Record<string, number> = JSON.parse(raw);
-    const expiry = bans[username];
-    if (!expiry || Date.now() > expiry) return null;
-    return expiry;
-  } catch {
-    return null;
-  }
-}
-
-export default function MessageInputBar({ onSend, currentUsername, disabled }: Props) {
-  const [text, setText] = useState('');
-  const [frozenExpiry, setFrozenExpiry] = useState<number | null>(null);
-  const [banExpiry, setBanExpiry] = useState<number | null>(null);
+export default function MessageInputBar({ onSend, onEmojiPickerToggle, username, disabled }: MessageInputBarProps) {
+  const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [warningMsg, setWarningMsg] = useState("");
 
-  const isBot = currentUsername === 'G.AI 🤖';
+  const { isUserMuted, getRemainingMuteMinutes } = useMuteManager();
+  const { isUserBanned, getRemainingBanMinutes } = useBanManager();
+  const { isInCooldown, getRemainingCooldownSeconds, recordMessageSent } = useSlowMode();
+  const { isChatLocked } = useChatLock();
 
-  const checkStatus = useCallback(() => {
-    if (isBot) return;
-    setFrozenExpiry(getFrozenExpiry(currentUsername));
-    setBanExpiry(getBanExpiry(currentUsername));
-  }, [currentUsername, isBot]);
+  const [enforcementStatus, setEnforcementStatus] = useState<{
+    blocked: boolean;
+    reason: string;
+  }>({ blocked: false, reason: "" });
+
+  const checkEnforcement = useCallback(() => {
+    if (username === OWNER || username === BOT_NAME) {
+      setEnforcementStatus({ blocked: false, reason: "" });
+      return;
+    }
+
+    if (isUserBanned(username)) {
+      const mins = getRemainingBanMinutes(username);
+      setEnforcementStatus({ blocked: true, reason: `You are banned for ${mins} minute${mins !== 1 ? "s" : ""} due to a violation.` });
+      return;
+    }
+
+    if (isUserMuted(username)) {
+      const mins = getRemainingMuteMinutes(username);
+      setEnforcementStatus({ blocked: true, reason: `You are muted for ${mins} minute${mins !== 1 ? "s" : ""}.` });
+      return;
+    }
+
+    if (isChatLocked(username)) {
+      setEnforcementStatus({ blocked: true, reason: "Chat is locked." });
+      return;
+    }
+
+    setEnforcementStatus({ blocked: false, reason: "" });
+  }, [username, isUserBanned, getRemainingBanMinutes, isUserMuted, getRemainingMuteMinutes, isChatLocked]);
 
   useEffect(() => {
-    checkStatus();
-    const interval = setInterval(checkStatus, 1000);
+    checkEnforcement();
+    const interval = setInterval(checkEnforcement, 1000);
     return () => clearInterval(interval);
-  }, [checkStatus]);
+  }, [checkEnforcement]);
 
-  // Listen for BroadcastChannel updates
+  // Auto-resize textarea
   useEffect(() => {
-    const ch = new BroadcastChannel('globalchat_server_control');
-    ch.onmessage = () => checkStatus();
-    return () => ch.close();
-  }, [checkStatus]);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [text]);
 
   const handleSend = () => {
-    if (!text.trim() || frozenExpiry || banExpiry || disabled) return;
-    onSend(text.trim());
-    setText('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+    const trimmed = text.trim();
+    if (!trimmed || disabled) return;
+
+    if (enforcementStatus.blocked) {
+      setWarningMsg(enforcementStatus.reason);
+      setTimeout(() => setWarningMsg(""), 3000);
+      return;
     }
+
+    // Check slow mode at send time
+    if (username !== OWNER && username !== BOT_NAME && isInCooldown(username)) {
+      const secs = getRemainingCooldownSeconds(username);
+      setWarningMsg(`Please wait ${secs} second${secs !== 1 ? "s" : ""} before sending another message.`);
+      setTimeout(() => setWarningMsg(""), 3000);
+      return;
+    }
+
+    // Check shadowban
+    const shadowbans: string[] = JSON.parse(localStorage.getItem("globalchat_shadowbans") || "[]");
+    if (shadowbans.includes(username)) {
+      // Silently "send" but don't actually send
+      setText("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      return;
+    }
+
+    recordMessageSent(username);
+    onSend(trimmed);
+    setText("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  const handleInput = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  };
-
-  const frozenMinsLeft = frozenExpiry
-    ? Math.ceil((frozenExpiry - Date.now()) / 60_000)
-    : 0;
-  const banMinsLeft = banExpiry
-    ? Math.ceil((banExpiry - Date.now()) / 60_000)
-    : 0;
-
-  const isBlocked = !!(frozenExpiry || banExpiry);
+  const isBlocked = enforcementStatus.blocked || disabled;
+  const displayWarning = warningMsg || (enforcementStatus.blocked ? enforcementStatus.reason : "");
 
   return (
-    <div className="px-4 pb-4 pt-2 shrink-0">
-      {banExpiry && (
-        <div className="mb-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
-          🚫 You are banned for violating community guidelines.
-          {banMinsLeft > 0 && ` (${banMinsLeft} minute${banMinsLeft !== 1 ? 's' : ''} remaining)`}
+    <div className="px-4 py-3" style={{ backgroundColor: "#313338", borderTop: "1px solid #1e1f22" }}>
+      {displayWarning && (
+        <div
+          className="mb-2 px-3 py-1.5 rounded text-xs"
+          style={{ backgroundColor: "#ed424520", border: "1px solid #ed424560", color: "#ed4245" }}
+        >
+          {displayWarning}
         </div>
       )}
-      {frozenExpiry && !banExpiry && (
-        <div className="mb-2 px-3 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs">
-          🧊 You are frozen for {frozenMinsLeft} more minute{frozenMinsLeft !== 1 ? 's' : ''}.
-        </div>
-      )}
-      <div className="flex items-end gap-2 bg-dc-input rounded-lg px-3 py-2 border border-white/10">
+      <div
+        className="flex items-end gap-2 rounded-lg px-3 py-2"
+        style={{
+          backgroundColor: "#383a40",
+          opacity: isBlocked ? 0.6 : 1,
+        }}
+      >
+        <button
+          onClick={onEmojiPickerToggle}
+          className="mb-1 shrink-0 transition-colors"
+          style={{ color: "#96989d" }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#dcddde"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#96989d"}
+          title="Emoji picker (Ctrl+Alt)"
+        >
+          <Smile size={20} />
+        </button>
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          placeholder={isBlocked ? 'You cannot send messages right now...' : 'Message #general'}
-          disabled={isBlocked || disabled}
+          disabled={isBlocked}
+          placeholder={isBlocked ? (enforcementStatus.reason || "You cannot send messages right now.") : `Message #general`}
           rows={1}
-          className="flex-1 bg-transparent text-white text-sm placeholder-dc-muted resize-none outline-none min-h-[24px] max-h-[120px] leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-transparent resize-none focus:outline-none text-sm leading-5 py-1"
+          style={{
+            color: "#dcddde",
+            minHeight: "24px",
+            maxHeight: "120px",
+          }}
         />
-        <Button
-          size="icon"
-          variant="ghost"
+        <button
           onClick={handleSend}
-          disabled={!text.trim() || isBlocked || disabled}
-          className="h-8 w-8 shrink-0 text-dc-muted hover:text-white hover:bg-white/10 disabled:opacity-30"
+          disabled={!text.trim() || isBlocked}
+          className="mb-1 shrink-0 transition-colors disabled:opacity-40"
+          style={{ color: "#96989d" }}
+          onMouseEnter={e => {
+            if (!(!text.trim() || isBlocked)) {
+              (e.currentTarget as HTMLElement).style.color = "#5865f2";
+            }
+          }}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#96989d"}
         >
-          <Send className="w-4 h-4" />
-        </Button>
+          <Send size={18} />
+        </button>
       </div>
     </div>
   );

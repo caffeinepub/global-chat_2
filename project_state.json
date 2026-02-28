@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 21,
+  "projectStateVersion": 31,
   "summary": "A Discord-inspired global chat website called \"Global Chat\" with real-time messaging via BroadcastChannel + localStorage, AI chatbot integration (@G.ai mentions in global chat), secret emoji picker (Ctrl+Alt), clear chat (Ctrl+C), OpenAI-powered auto-moderation with 10-minute bans, a moderation ban log/admin panel, user authentication (username + password), logout button, a special verified owner account 'AI.Caffeine' with hardcoded password '2580' and full admin privileges, 30 fun admin commands replacing the previous broken ones, and server state management.",
   "architectural_notes": [
     "Uses BroadcastChannel API + localStorage (key: globalchat_messages) for real-time cross-tab messaging with no backend",
@@ -15,7 +15,8 @@
   ],
   "known_issues": [
     "G.AI Chat panel not functioning properly — needs fix and model switch to OpenAI ChatGPT",
-    "Messages sent on mobile are not visible on PC — BroadcastChannel does not work cross-device, only cross-tab on the same browser"
+    "Messages sent on mobile are not visible on PC — BroadcastChannel does not work cross-device, only cross-tab on the same browser",
+    "App shows blank/empty page when opened in a new tab or window — likely a routing or initialization issue"
   ],
   "isFixRequest": true,
   "existing_features": [
@@ -362,6 +363,134 @@
         "REQ-45"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-components-adminpanel-tsx-to-its-version-9-state-the-admin-panel-must-contain-exactly-the-following-commands-organized-in-their-original-tabs-sections-1-core-moderation-commands-ban-unban-mute-unmute-mass-mute-mass-unmute-2-server-control-commands-shutdown-server-start-up-server-3-chat-control-commands-slow-mode-disable-slow-mode-lock-chat-unlock-chat-4-message-commands-big-message-broadcast-force-text-5-the-25-more-commands-from-version-9-rename-user-clear-all-chat-pin-message-unpin-message-announce-role-change-theme-slow-mode-disable-slow-mode-lock-chat-unlock-chat-mass-mute-mass-unmute-fake-join-fake-leave-set-motd-clear-motd-highlight-user-shadowban-unshadowban-rename-channel-set-user-limit-reset-user-limit-toggle-profanity-filter-impersonate-bot-export-chat-log-remove-all-commands-added-after-version-9-the-30-fun-commands-the-50-serious-server-management-commands-the-50-troll-funny-commands-give-admin-take-admin-force-logout-user-delete-user-account-reset-user-password-view-all-users-promote-to-mod-demote-from-mod-and-any-others-not-in-the-above-version-9-list",
+      "title": "Restore `frontend/src/components/AdminPanel.tsx` to its Version 9 state. The admin panel must contain exactly the following commands organized in their original tabs/sections: (1) Core moderation commands: Ban, Unban, Mute, Unmute, Mass Mute, Mass Unmute; (2) Server control commands: Shutdown Server, Start Up Server; (3) Chat control commands: Slow Mode, Disable Slow Mode, Lock Chat, Unlock Chat; (4) Message commands: Big Message broadcast, Force Text; (5) The 25 'More Commands' from Version 9: Rename User, Clear All Chat, Pin Message, Unpin Message, Announce Role, Change Theme, Slow Mode, Disable Slow Mode, Lock Chat, Unlock Chat, Mass Mute, Mass Unmute, Fake Join, Fake Leave, Set MOTD, Clear MOTD, Highlight User, Shadowban, Unshadowban, Rename Channel, Set User Limit, Reset User Limit, Toggle Profanity Filter, Impersonate Bot, Export Chat Log. Remove all commands added after Version 9 (the 30 fun commands, the 50 serious server-management commands, the 50 troll/funny commands, Give Admin, Take Admin, Force Logout User, Delete User Account, Reset User Password, View All Users, Promote to Mod, Demote from Mod, and any others not in the above Version 9 list).",
+      "reqIds": [
+        "REQ-63"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-hooks-useserverstate-ts-to-its-version-9-fully-working-implementation-on-component-mount-read-globalchat-server-state-from-localstorage-and-immediately-apply-the-shutdown-overlay-if-isshutdown-true-and-date-now-shutdownuntil-subscribe-to-the-globalchat-server-control-broadcastchannel-for-real-time-shutdown-startup-state-changes-and-update-react-state-accordingly-when-shutdownuntil-is-reached-naturally-automatically-set-isshutdown-false-and-broadcast-the-startup-event-overlay-visibility-must-be-derived-from-react-state",
+      "title": "Restore `frontend/src/hooks/useServerState.ts` to its Version 9 fully working implementation. On component mount, read `globalchat_server_state` from localStorage and immediately apply the shutdown overlay if `isShutdown: true` and `Date.now() < shutdownUntil`. Subscribe to the `globalchat_server_control` BroadcastChannel for real-time shutdown/startup state changes and update React state accordingly. When `shutdownUntil` is reached naturally, automatically set `isShutdown: false` and broadcast the startup event. Overlay visibility must be derived from React state.",
+      "reqIds": [
+        "REQ-64"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-components-shutdownoverlay-tsx-frontend-src-components-startupoverlay-tsx-and-frontend-src-components-ownershutdownbanner-tsx-to-their-version-9-implementations-and-re-wire-them-into-chatpage-tsx-when-globalchat-server-state-has-isshutdown-true-and-date-now-shutdownuntil-non-owner-users-any-username-that-is-not-ai-caffeine-must-see-the-full-screen-black-shutdownoverlay-displaying-1-server-shut-down-title-2-the-shutdownmessage-if-provided-3-a-live-mm-ss-countdown-all-message-input-must-be-blocked-for-ai-caffeine-show-the-non-blocking-ownershutdownbanner-with-countdown-and-start-up-now-button-on-server-startup-transition-non-owner-users-see-the-green-startupoverlay-server-starting-up-for-5-seconds",
+      "title": "Restore `frontend/src/components/ShutdownOverlay.tsx`, `frontend/src/components/StartupOverlay.tsx`, and `frontend/src/components/OwnerShutdownBanner.tsx` to their Version 9 implementations and re-wire them into `ChatPage.tsx`. When `globalchat_server_state` has `isShutdown: true` and `Date.now() < shutdownUntil`, non-owner users (any username that is not `AI.Caffeine`) must see the full-screen black ShutdownOverlay displaying: (1) '🔴 Server Shut Down' title, (2) the shutdownMessage if provided, (3) a live mm:ss countdown. All message input must be blocked. For `AI.Caffeine`, show the non-blocking OwnerShutdownBanner with countdown and 'Start Up Now' button. On server startup transition, non-owner users see the green StartupOverlay ('🟢 Server Starting Up...') for 5 seconds.",
+      "reqIds": [
+        "REQ-65"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-hooks-usemutemanager-ts-to-its-version-9-working-implementation-the-hook-must-read-globalchat-mutes-from-localstorage-expose-mute-checking-functionality-and-prune-expired-mute-entries-automatically-update-messageinputbar-tsx-to-enforce-mute-status-on-every-send-attempt-by-a-non-bot-user-check-globalchat-mutes-for-the-current-username-if-a-valid-non-expired-mute-entry-exists-block-the-message-and-show-the-inline-warning-you-are-muted-for-x-minutes",
+      "title": "Restore `frontend/src/hooks/useMuteManager.ts` to its Version 9 working implementation. The hook must read `globalchat_mutes` from localStorage, expose mute-checking functionality, and prune expired mute entries automatically. Update `MessageInputBar.tsx` to enforce mute status: on every send attempt by a non-bot user, check `globalchat_mutes` for the current username; if a valid non-expired mute entry exists, block the message and show the inline warning 'You are muted for X minutes.'",
+      "reqIds": [
+        "REQ-66"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-hooks-useslowmode-ts-frontend-src-hooks-usechatlock-ts-and-frontend-src-hooks-usebanmanager-ts-to-their-version-9-working-implementations-wire-them-back-into-messageinputbar-tsx-and-chatpage-tsx-to-enforce-1-slow-mode-cooldown-from-globalchat-slowmode-with-inline-notice-please-wait-x-seconds-before-sending-another-message-2-chat-lock-from-globalchat-locked-with-inline-notice-chat-is-locked-for-non-owner-users-3-ban-enforcement-from-globalchat-bans-with-inline-warning-you-are-banned-for-x-minutes-due-to-a-violation-these-were-the-version-9-enforcement-behaviors",
+      "title": "Restore `frontend/src/hooks/useSlowMode.ts`, `frontend/src/hooks/useChatLock.ts`, and `frontend/src/hooks/useBanManager.ts` to their Version 9 working implementations. Wire them back into `MessageInputBar.tsx` and `ChatPage.tsx` to enforce: (1) slow mode cooldown from `globalchat_slowmode` with inline notice 'Please wait X seconds before sending another message'; (2) chat lock from `globalchat_locked` with inline notice 'Chat is locked.' for non-owner users; (3) ban enforcement from `globalchat_bans` with inline warning 'You are banned for X minutes due to a violation.' These were the Version 9 enforcement behaviors.",
+      "reqIds": [
+        "REQ-67"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-remove-all-admin-commands-visual-effects-css-classes-localstorage-keys-and-broadcastchannel-event-handlers-that-were-added-after-version-9-this-includes-the-30-fun-creative-admin-commands-rainbow-mode-confetti-blast-flip-chat-shake-messages-big-head-mode-ghost-mode-vip-crown-party-mode-freeze-user-balloon-message-summon-bot-weather-announce-change-avatar-color-neon-theme-retro-theme-reset-theme-spotlight-user-random-nickname-server-birthday-trivia-question-count-messages-word-of-the-day-mystery-box-typing-indicator-flood-server-stats-clear-admin-log-remove-vip-unfreeze-user-impersonate-bot-variant-the-50-serious-server-management-commands-set-welcome-message-ban-wave-unban-all-view-all-users-delete-user-account-reset-user-password-force-logout-user-announce-maintenance-etc-the-50-troll-funny-commands-jumbo-text-mode-tiny-text-mode-mirrored-text-comic-sans-attack-zalgo-text-etc-give-admin-take-admin-force-logout-user-delete-user-account-reset-user-password-view-all-users-promote-to-mod-demote-from-mod-remove-associated-hooks-components-birthdayoverlay-tsx-confettiburst-tsx-references-from-post-v9-commands-typingindicatorbar-tsx-if-added-post-v9-and-localstorage-keys-introduced-by-these-commands",
+      "title": "Remove all admin commands, visual effects, CSS classes, localStorage keys, and BroadcastChannel event handlers that were added after Version 9. This includes: the 30 fun/creative admin commands (Rainbow Mode, Confetti Blast, Flip Chat, Shake Messages, Big Head Mode, Ghost Mode, VIP Crown, Party Mode, Freeze User, Balloon Message, Summon Bot, Weather Announce, Change Avatar Color, Neon Theme, Retro Theme, Reset Theme, Spotlight User, Random Nickname, Server Birthday, Trivia Question, Count Messages, Word of the Day, Mystery Box, Typing Indicator Flood, Server Stats, Clear Admin Log, Remove VIP, Unfreeze User, Impersonate Bot variant); the 50 serious server-management commands (Set Welcome Message, Ban Wave, Unban All, View All Users, Delete User Account, Reset User Password, Force Logout User, Announce Maintenance, etc.); the 50 troll/funny commands (Jumbo Text Mode, Tiny Text Mode, Mirrored Text, Comic Sans Attack, Zalgo Text, etc.); Give Admin, Take Admin, Force Logout User, Delete User Account, Reset User Password, View All Users, Promote to Mod, Demote from Mod. Remove associated hooks, components (BirthdayOverlay.tsx, ConfettiBurst.tsx references from post-v9 commands, TypingIndicatorBar.tsx if added post-v9), and localStorage keys introduced by these commands.",
+      "reqIds": [
+        "REQ-68"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-chatarea-tsx-to-its-version-9-state-it-must-render-1-pinned-messages-with-a-sticky-pinned-message-bar-from-globalchat-pinned-2-glowing-colored-border-for-highlighted-users-from-globalchat-highlights-3-system-messages-fake-join-leave-announce-role-in-italicized-system-message-style-4-motd-banner-from-globalchat-motd-as-a-dismissible-top-banner-5-big-messages-as-full-width-banners-with-icon-6-forced-messages-with-ghost-indicator-visible-only-to-ai-caffeine-remove-all-post-version-9-visual-effect-applications-rainbow-mode-class-flip-chat-transform-bighead-avatar-scaling-ghost-mode-opacity-vip-crown-badge-nickname-display-custom-avatar-color-typing-indicator-flood-display-confetti-birthday-overlay-triggers-neon-retro-theme-class-switching-that-were-added-in-later-versions",
+      "title": "Restore `ChatArea.tsx` to its Version 9 state. It must render: (1) pinned messages with a 📌 sticky pinned message bar from `globalchat_pinned`; (2) glowing colored border for highlighted users from `globalchat_highlights`; (3) system messages (Fake Join/Leave, Announce Role) in italicized system-message style; (4) MOTD banner from `globalchat_motd` as a dismissible top banner; (5) big messages as full-width banners with 📢 icon; (6) forced messages with 👻 ghost indicator visible only to AI.Caffeine. Remove all post-Version-9 visual effect applications (rainbow mode class, flip chat transform, bighead avatar scaling, ghost mode opacity, VIP crown badge, nickname display, custom avatar color, typing indicator flood display, confetti/birthday overlay triggers, neon/retro theme class switching) that were added in later versions.",
+      "reqIds": [
+        "REQ-69"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-chatpage-tsx-topbar-tsx-sidebar-tsx-and-messageinputbar-tsx-to-their-version-9-state-chatpage-tsx-must-wire-together-server-state-shutdown-startup-overlays-mute-enforcement-ban-enforcement-slow-mode-chat-lock-shadowban-local-only-send-the-g-ai-mention-detector-ai-moderation-usechatmoderation-the-openai-api-key-prompt-and-the-authentication-logout-flow-topbar-tsx-must-show-the-admin-panel-button-only-for-ai-caffeine-no-admin-badge-for-other-users-sidebar-tsx-must-not-show-vip-crowns-admin-badges-or-mod-badges-remove-all-post-version-9-additions-including-party-mode-vip-state-admin-mod-badge-rendering-force-logout-subscription-and-any-new-broadcastchannel-event-subscriptions-added-after-version-9",
+      "title": "Restore `ChatPage.tsx`, `TopBar.tsx`, `Sidebar.tsx`, and `MessageInputBar.tsx` to their Version 9 state. ChatPage.tsx must wire together: server state (shutdown/startup overlays), mute enforcement, ban enforcement, slow mode, chat lock, shadowban (local-only send), the @G.ai mention detector, AI moderation (useChatModeration), the OpenAI API key prompt, and the authentication/logout flow. TopBar.tsx must show the Admin Panel button only for AI.Caffeine (no Admin badge for other users). Sidebar.tsx must not show VIP crowns, Admin badges, or Mod badges. Remove all post-Version-9 additions including party mode, VIP state, admin/mod badge rendering, force-logout subscription, and any new BroadcastChannel event subscriptions added after Version 9.",
+      "reqIds": [
+        "REQ-70"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-index-css-and-frontend-tailwind-config-js-to-their-version-9-state-remove-all-css-animations-keyframes-and-utility-classes-that-were-added-for-post-version-9-features-including-jumbo-text-tiny-text-mirror-text-flip-names-invisible-ink-disco-mode-comic-sans-earthquake-zoom-pulse-blur-text-rotate-msg-noodle-wave-colorblind-sim-strobe-flash-glitch-flicker-typewriter-post-v9-variant-spin-logo-matrix-rain-and-any-other-post-v9-animation-classes-retain-the-version-9-animations-slidein-rainbow-original-shake-original-confetti-original-birthday-original-and-the-discord-inspired-neon-retro-theme-color-palette-definitions-that-existed-in-version-9",
+      "title": "Restore `frontend/src/index.css` and `frontend/tailwind.config.js` to their Version 9 state. Remove all CSS animations, keyframes, and utility classes that were added for post-Version-9 features, including: jumbo-text, tiny-text, mirror-text, flip-names, invisible-ink, disco-mode, comic-sans, earthquake, zoom-pulse, blur-text, rotate-msg, noodle-wave, colorblind-sim, strobe-flash, glitch-flicker, typewriter (post-v9 variant), spin-logo, matrix-rain, and any other post-v9 animation classes. Retain the Version 9 animations: slideIn, rainbow (original), shake (original), confetti (original), birthday (original), and the Discord-inspired/neon/retro theme color palette definitions that existed in Version 9.",
+      "reqIds": [
+        "REQ-71"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-the-overall-visual-layout-and-component-structure-of-the-chat-ui-to-match-version-9-this-includes-the-discord-inspired-dark-theme-with-exact-colors-1e1f22-background-2b2d31-sidebar-313338-chat-area-383a40-input-5865f2-accent-inter-system-ui-font-the-left-sidebar-showing-global-channel-with-online-user-count-and-user-list-the-top-bar-with-app-name-and-globe-icon-the-scrollable-chat-area-with-message-hover-highlights-and-slide-in-animations-and-the-message-input-bar-remove-any-visual-remodeling-or-layout-changes-that-deviate-from-the-version-9-appearance",
+      "title": "Restore the overall visual layout and component structure of the chat UI to match Version 9. This includes: the Discord-inspired dark theme with exact colors (#1e1f22 background, #2b2d31 sidebar, #313338 chat area, #383a40 input, #5865f2 accent), Inter/system-ui font, the left sidebar showing '# global' channel with online user count and user list, the top bar with app name and globe icon, the scrollable chat area with message hover highlights and slide-in animations, and the message input bar. Remove any visual remodeling or layout changes that deviate from the Version 9 appearance.",
+      "reqIds": [
+        "REQ-72"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-index-css-and-frontend-tailwind-config-js-to-their-version-9-state-remove-all-css-animations-keyframes-and-utility-classes-added-for-post-version-9-features-jumbo-text-tiny-text-mirror-text-flip-names-invisible-ink-disco-mode-comic-sans-earthquake-zoom-pulse-blur-text-rotate-msg-noodle-wave-colorblind-sim-strobe-flash-glitch-flicker-spin-logo-matrix-rain-and-any-other-post-v9-animation-classes-retain-only-the-version-9-animations-slidein-rainbow-shake-confetti-birthday-and-the-discord-inspired-neon-retro-theme-color-palette-definitions-that-existed-in-version-9",
+      "title": "Restore `frontend/src/index.css` and `frontend/tailwind.config.js` to their Version 9 state. Remove all CSS animations, keyframes, and utility classes added for post-Version-9 features (jumbo-text, tiny-text, mirror-text, flip-names, invisible-ink, disco-mode, comic-sans, earthquake, zoom-pulse, blur-text, rotate-msg, noodle-wave, colorblind-sim, strobe-flash, glitch-flicker, spin-logo, matrix-rain, and any other post-v9 animation classes). Retain only the Version 9 animations: slideIn, rainbow, shake, confetti, birthday, and the Discord-inspired/neon/retro theme color palette definitions that existed in Version 9.",
+      "reqIds": [
+        "REQ-73"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-components-chatarea-tsx-to-its-version-9-state-it-must-render-1-a-sticky-pinned-message-bar-from-globalchat-pinned-2-glowing-colored-border-for-highlighted-users-from-globalchat-highlights-3-system-messages-fake-join-leave-announce-role-in-italicized-system-message-style-with-a-different-background-4-motd-banner-from-globalchat-motd-as-a-dismissible-top-banner-5-big-messages-as-full-width-banners-with-icon-6-forced-messages-with-ghost-indicator-visible-only-to-ai-caffeine-remove-all-post-version-9-visual-effect-applications-rainbow-mode-class-flip-chat-transform-bighead-avatar-scaling-ghost-mode-opacity-vip-crown-badge-nickname-display-custom-avatar-color-typing-indicator-flood-display-confetti-birthday-overlay-triggers-neon-retro-theme-class-switching",
+      "title": "Restore `frontend/src/components/ChatArea.tsx` to its Version 9 state. It must render: (1) a sticky 📌 pinned message bar from `globalchat_pinned`; (2) glowing colored border for highlighted users from `globalchat_highlights`; (3) system messages (Fake Join/Leave, Announce Role) in italicized system-message style with a different background; (4) MOTD banner from `globalchat_motd` as a dismissible top banner; (5) big messages as full-width banners with 📢 icon; (6) forced messages with 👻 ghost indicator visible only to AI.Caffeine. Remove all post-Version-9 visual effect applications (rainbow mode class, flip chat transform, bighead avatar scaling, ghost mode opacity, VIP crown badge, nickname display, custom avatar color, typing indicator flood display, confetti/birthday overlay triggers, neon/retro theme class switching).",
+      "reqIds": [
+        "REQ-74"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-frontend-src-pages-chatpage-tsx-frontend-src-components-topbar-tsx-frontend-src-components-sidebar-tsx-and-frontend-src-components-messageinputbar-tsx-to-their-version-9-state-chatpage-tsx-must-wire-together-server-state-shutdown-startup-overlays-via-shutdownoverlay-startupoverlay-ownershutdownbanner-mute-enforcement-ban-enforcement-slow-mode-chat-lock-shadowban-local-only-send-the-g-ai-mention-detector-ai-moderation-usechatmoderation-the-openai-api-key-prompt-and-the-authentication-logout-flow-topbar-tsx-must-show-the-admin-panel-button-only-for-ai-caffeine-sidebar-tsx-must-not-show-vip-crowns-admin-badges-or-mod-badges-remove-all-post-version-9-additions-including-party-mode-vip-state-admin-mod-badge-rendering-force-logout-subscription-and-any-new-broadcastchannel-event-subscriptions-added-after-version-9",
+      "title": "Restore `frontend/src/pages/ChatPage.tsx`, `frontend/src/components/TopBar.tsx`, `frontend/src/components/Sidebar.tsx`, and `frontend/src/components/MessageInputBar.tsx` to their Version 9 state. ChatPage.tsx must wire together: server state (shutdown/startup overlays via ShutdownOverlay, StartupOverlay, OwnerShutdownBanner), mute enforcement, ban enforcement, slow mode, chat lock, shadowban (local-only send), the @G.ai mention detector, AI moderation (useChatModeration), the OpenAI API key prompt, and the authentication/logout flow. TopBar.tsx must show the Admin Panel button only for AI.Caffeine. Sidebar.tsx must not show VIP crowns, Admin badges, or Mod badges. Remove all post-Version-9 additions including party mode, VIP state, admin/mod badge rendering, force-logout subscription, and any new BroadcastChannel event subscriptions added after Version 9.",
+      "reqIds": [
+        "REQ-75"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-blank-empty-page-issue-that-occurs-when-the-app-is-opened-in-a-new-tab-or-window-audit-frontend-src-app-tsx-to-ensure-the-session-check-on-mount-correctly-reads-globalchat-session-from-localstorage-and-transitions-to-either-landingpage-or-chatpage-without-rendering-a-blank-screen-the-loading-spinner-state-must-resolve-correctly-on-initial-render-and-the-app-must-never-remain-stuck-in-a-blank-state-after-the-session-check-completes",
+      "title": "Fix the blank/empty page issue that occurs when the app is opened in a new tab or window. Audit `frontend/src/App.tsx` to ensure the session check on mount correctly reads `globalchat_session` from localStorage and transitions to either `LandingPage` or `ChatPage` without rendering a blank screen. The loading/spinner state must resolve correctly on initial render, and the app must never remain stuck in a blank state after the session check completes.",
+      "reqIds": [
+        "REQ-76"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-audit-frontend-src-main-tsx-entry-point-and-frontend-index-html-to-ensure-the-react-app-mounts-correctly-on-all-page-loads-verify-that-the-root-div-id-root-is-always-present-and-that-the-react-createroot-call-in-main-tsx-never-fails-silently-ensure-no-uncaught-javascript-errors-during-initialization-prevent-the-app-from-rendering",
+      "title": "Audit `frontend/src/main.tsx` entry point and `frontend/index.html` to ensure the React app mounts correctly on all page loads. Verify that the root `<div id='root'>` is always present and that the React `createRoot` call in `main.tsx` never fails silently. Ensure no uncaught JavaScript errors during initialization prevent the app from rendering.",
+      "reqIds": [
+        "REQ-77"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-frontend-src-lib-auth-ts-initializes-synchronously-without-throwing-errors-that-could-block-the-app-render-the-seedowneraccount-call-which-seeds-the-ai-caffeine-account-into-globalchat-users-must-not-throw-or-cause-unhandled-exceptions-if-localstorage-is-unavailable-or-corrupted-wrap-any-localstorage-reads-writes-in-try-catch-blocks-to-prevent-initialization-failures-from-crashing-the-app",
+      "title": "Ensure `frontend/src/lib/auth.ts` initializes synchronously without throwing errors that could block the app render. The `seedOwnerAccount` call (which seeds the `AI.Caffeine` account into `globalchat_users`) must not throw or cause unhandled exceptions if localStorage is unavailable or corrupted. Wrap any localStorage reads/writes in try-catch blocks to prevent initialization failures from crashing the app.",
+      "reqIds": [
+        "REQ-78"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -439,6 +568,154 @@
       "id": "AR-16",
       "summary": "Remove broken admin commands (mute, server shutdown, ban, mass mute, and other non-working commands) and replace with 30 new fun/creative admin commands of the AI assistant's choice",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-17",
+      "summary": "Add 100 more admin commands: 50 serious server-management commands and 50 troll/funny commands",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-18",
+      "summary": "Add 50 serious server-management admin commands to `AdminPanel.tsx` in a new 'Server Management' tab or section, exclusively accessible to `AI.Caffeine`. Each command must accept relevant inputs and show inline success/error feedback. The 50 serious commands are: (1) **Set Welcome Message** — store a custom welcome message in `globalchat_welcome_msg` displayed to users when they first join; (2) **Clear Welcome Message** — remove the welcome message; (3) **Ban Wave** — ban a comma-separated list of usernames simultaneously for a configurable duration, storing each in `globalchat_bans`; (4) **Unban All** — remove all entries from `globalchat_bans`; (5) **View All Users** — display inline a list of all registered usernames from `globalchat_users`; (6) **Delete User Account** — remove a username's entry from `globalchat_users` localStorage; (7) **Reset User Password** — overwrite a specific user's stored password in `globalchat_users` with a new admin-specified value (base64-encoded using the same scheme); (8) **Force Logout User** — broadcast a `globalchat_force_logout` event with the target username via BroadcastChannel so that tab(s) with that session immediately clear `globalchat_session` and redirect to login; (9) **Announce Maintenance** — post a bot message styled as a yellow warning banner: '🔧 Scheduled maintenance: [admin text]'; (10) **Set Chat Rules** — store rules text in `globalchat_rules` localStorage and post a system message displaying the rules; (11) **Clear Chat Rules** — remove `globalchat_rules` from localStorage; (12) **Archive Chat** — copy all current messages from `globalchat_messages` into `globalchat_archive` in localStorage, then clear the live messages; (13) **Restore Archive** — load messages from `globalchat_archive` back into `globalchat_messages` and broadcast to all tabs; (14) **Set Max Message Length** — store an integer cap in `globalchat_max_msg_len`; `MessageInputBar.tsx` must enforce this limit and show an inline warning when exceeded; (15) **Reset Max Message Length** — remove the cap from `globalchat_max_msg_len`; (16) **Enable Read-Only Mode** — store `globalchat_readonly: true` in localStorage and broadcast it; all non-owner users see messages but cannot send any, with an inline notice 'Chat is in read-only mode'; (17) **Disable Read-Only Mode** — remove the read-only restriction and broadcast; (18) **Post Pinned Announcement** — post a big banner message to global chat AND pin it by ID simultaneously; (19) **Clear All Pins** — wipe `globalchat_pinned` and broadcast a clear-pins event so all tabs hide the pinned bar; (20) **Set Server Description** — store a short description string in `globalchat_server_desc` and display it as a subtitle in the TopBar; (21) **Clear Server Description** — remove `globalchat_server_desc` and hide the subtitle; (22) **IP Log Viewer** (simulated) — display inline a generated fake IP log of recent usernames and randomized IP addresses for show purposes only; (23) **Promote to Mod** — store a username in `globalchat_mods` JSON array in localStorage and post a system message '[username] has been promoted to Moderator 🛡️'; (24) **Demote from Mod** — remove a username from `globalchat_mods` and post a system message; (25) **View Mod List** — display inline all usernames currently in `globalchat_mods`; (26) **Set Invite Code** — store a string in `globalchat_invite_code`; on `LandingPage.tsx`, show an optional invite code field and block new account creation unless the entered code matches (skip check if `globalchat_invite_code` is empty); (27) **Clear Invite Code** — remove `globalchat_invite_code` and restore open registration; (28) **Message Rate Limit** — store a per-user message-per-minute cap in `globalchat_rate_limit`; `MessageInputBar.tsx` must track send timestamps and block if the cap is exceeded, showing 'Rate limit reached. Please wait.'; (29) **Reset Message Rate Limit** — remove `globalchat_rate_limit`; (30) **Broadcast Alert Banner** — post a full-width red alert banner message in global chat with a 🚨 icon and the admin-specified text; (31) **Set AFK Timeout** — store a timeout value in minutes in `globalchat_afk_timeout`; display a localStorage-tracked idle timer that auto-posts a system message '[username] went AFK' after inactivity; (32) **Clear AFK Timeout** — remove `globalchat_afk_timeout`; (33) **View Ban History** — display inline all entries in `globalchat_bans` including expired ones stored in `globalchat_ban_history` array; (34) **Export User List** — trigger a browser download of all usernames (keys from `globalchat_users`) as a `.json` file; (35) **Export Mod Log** — trigger a browser download of `globalchat_mod_log` as a `.json` file; (36) **Reset Mod Log** — wipe `globalchat_mod_log` localStorage key; (37) **Announce Update** — post a bot message styled as a green update banner: '✅ Server Update: [admin text]'; (38) **Set Bot Prefix** — store a custom prefix string in `globalchat_bot_prefix` and show it in the chat input placeholder (e.g., 'Use /ask to talk to G.AI'); (39) **Clear Bot Prefix** — remove `globalchat_bot_prefix`; (40) **Global Mute** — broadcast and store `globalchat_global_mute: true` blocking all non-owner message sends with inline notice 'Global mute is active'; (41) **Lift Global Mute** — set `globalchat_global_mute: false` and broadcast; (42) **Set Flood Guard** — store a minimum interval (ms) between any two messages globally in `globalchat_flood_guard`; `MessageInputBar.tsx` enforces this; (43) **Clear Flood Guard** — remove `globalchat_flood_guard`; (44) **Announce Event** — post a system message with a 🎉 event banner: '🎉 Event: [admin text] — starts at [admin time]'; (45) **View Active Sessions** (simulated) — display inline a list of usernames from `globalchat_users` keys as 'active'; (46) **Toggle Join/Leave Messages** — store `globalchat_joinleave: boolean` in localStorage; when enabled, post system messages when new accounts are created; (47) **Post Rules Reminder** — re-post the rules stored in `globalchat_rules` as a bot message in the chat; (48) **Emergency Broadcast** — post a full-width flashing red message with 🔴 icon and urgent admin text visible to all users; (49) **Set Server Icon Emoji** — store an emoji string in `globalchat_server_icon` and display it next to the server name in the Sidebar and TopBar; (50) **Reset Server Icon Emoji** — remove `globalchat_server_icon` and revert to the default globe icon.",
+      "reqIds": [
+        "REQ-46"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-19",
+      "summary": "Add 50 troll and funny admin commands to `AdminPanel.tsx` in a new 'Troll & Fun' tab or section, exclusively accessible to `AI.Caffeine`. Each command must accept relevant inputs (where applicable) and show inline success/error feedback. The 50 troll/funny commands are: (1) **Jumbo Text Mode** — broadcast a flag stored in `globalchat_jumbo_text` with an expiry (60 seconds) that makes all chat message text render at 2x font size; (2) **Tiny Text Mode** — broadcast a flag stored in `globalchat_tiny_text` (60 seconds) that makes all chat message text render at 0.6x font size; (3) **Mirrored Text** — broadcast `globalchat_mirror_text` (30 seconds) that applies CSS `transform: scaleX(-1)` to all message text, making it appear horizontally mirrored; (4) **Upside Down Names** — broadcast `globalchat_flip_names` (30 seconds) applying `transform: rotate(180deg)` to all username labels only; (5) **Invisible Ink Mode** — broadcast `globalchat_invisible_ink` (20 seconds) setting all message text color to match the chat background (text hidden until hovered, which reveals it via a CSS hover rule); (6) **Disco Mode** — broadcast `globalchat_disco_mode` (60 seconds) that rapidly cycles the chat background between multiple colors using a CSS keyframe animation; (7) **Comic Sans Attack** — broadcast `globalchat_comic_sans` (60 seconds) overriding the entire chat font-family to Comic Sans MS; (8) **Zalgo Text** — post a bot message where the admin-entered text is converted to Zalgo-style text (random combining Unicode diacritic characters inserted) before posting; (9) **Reverse All Messages** — broadcast `globalchat_reverse_order` (30 seconds) that renders the messages list in reverse chronological order (newest at top); (10) **Fake Error Screen** — broadcast a 3-second full-screen red overlay showing a fake '💥 CRITICAL ERROR — System Failure' message to all non-owner users via BroadcastChannel event type `fake_error`; (11) **Earthquake Mode** — broadcast `globalchat_earthquake` (15 seconds) applying a continuous CSS translate shake animation to the entire chat container; (12) **Zoom Pulse** — broadcast `globalchat_zoom_pulse` (30 seconds) that applies a repeating CSS scale pulse animation (1.0 → 1.03 → 1.0) to each message card; (13) **All Caps Mode** — broadcast `globalchat_all_caps` (60 seconds) that applies `text-transform: uppercase` to all message text; (14) **No Caps Mode** — broadcast `globalchat_no_caps` (60 seconds) that applies `text-transform: lowercase` to all message text; (15) **Backwards Username** — broadcast `globalchat_reverse_names` (30 seconds) that displays each username reversed (e.g., 'Alex' → 'xelA'); (16) **Fake Lag Indicator** — post a system message: '⚠️ High server latency detected — messages may be delayed'; (17) **Pretend Hack** — broadcast a 4-second full-screen black overlay with green scrolling Matrix-style text shown to all non-owner users via BroadcastChannel event type `fake_hack`; (18) **Random Emote Spam** — post 5 bot messages in quick succession (300ms apart), each containing 10 random emojis drawn from a curated list; (19) **Bold Everything** — broadcast `globalchat_bold_text` (60 seconds) applying `font-weight: 900` to all message text; (20) **Italic Everything** — broadcast `globalchat_italic_text` (60 seconds) applying `font-style: italic` to all message text; (21) **Message Blur** — broadcast `globalchat_blur_text` (30 seconds) applying `filter: blur(3px)` to all message text (hovering a message removes blur via CSS hover rule); (22) **Name Tag Shuffle** — broadcast `globalchat_shuffle_names` (20 seconds) that randomly reassigns displayed usernames among the last 10 messages on each render tick (visual troll only, does not alter stored data); (23) **Rotate Messages** — broadcast `globalchat_rotate_msgs` (20 seconds) applying `transform: rotate(5deg)` to every other message card; (24) **Noodle Mode** — broadcast `globalchat_noodle` (30 seconds) applying a CSS wave/skew animation to each message card making them appear to wobble; (25) **Color Blind Simulation** — broadcast `globalchat_colorblind` (30 seconds) applying a CSS `filter: grayscale(1)` to the entire chat area; (26) **Strobe Warning + Flash** — post a system message '⚠️ Strobe warning!' then broadcast `globalchat_strobe` (3 seconds) rapidly alternating the chat background between white and the normal dark color; (27) **Fake User Count** — broadcast `globalchat_fake_user_count` with an admin-specified number that overrides the displayed online count in TopBar and Sidebar for 60 seconds; (28) **Ghost Cursor** — broadcast `globalchat_ghost_cursor` (30 seconds) applying CSS `cursor: none` to the chat area so the mouse cursor disappears while hovering over chat; (29) **Random Font Mode** — broadcast `globalchat_random_fonts` (60 seconds) assigning a randomly chosen font-family (from a curated list of 8 fun fonts including Impact, Papyrus, Courier New, Georgia, Verdana, Trebuchet MS, Palatino, fantasy) to each message card; (30) **Spinning Logo** — broadcast `globalchat_spin_logo` (30 seconds) applying a continuous CSS rotation animation to the server name/globe icon in the TopBar; (31) **Fake Disconnect** — broadcast event type `fake_disconnect` showing all non-owner users a full-screen '🔌 Disconnected from server. Reconnecting...' overlay for 4 seconds; (32) **Troll Poll** — post a bot message with a funny multiple-choice poll, e.g., 'Poll 📊: What is the best pizza topping? A) Pineapple 🍍 B) Nothing (classic) C) Tears D) More pizza'; (33) **Award Loser Badge** — store a username in `globalchat_loser_badge` and render a 🤡 badge next to that username in all their messages for 10 minutes; (34) **Remove Loser Badge** — remove the username from `globalchat_loser_badge`; (35) **Fake Admin Warning** — post a bot message addressed to a target username: '⚠️ Warning issued to [username]: Please follow the server rules or face consequences.'; (36) **Rick Roll Link** — post a bot message: '🎵 [username] shared a link: https://youtu.be/dQw4w9WgXcQ — don't click this 👀' (plain text, not a real anchor); (37) **Big Brain Award** — post a system message '🧠 [username] has been awarded the Big Brain trophy for outstanding intelligence!'; (38) **Fake Server Merge** — post a system message '📡 This server is merging with another community. Welcome new members!'; (39) **Fake Premium Unlock** — post a system message '🌟 [username] just unlocked Premium membership!'; (40) **Copypasta Bomb** — post a bot message containing a classic internet copypasta (pre-written, G-rated, e.g., the 'Navy Seal copypasta' replaced with a funny safe version like the Navy Cat version); (41) **Fake Vote Kick** — post a system message '🗳️ Vote kick initiated against [username] — 0/5 votes (60s remaining)'; (42) **Matrix Rain Overlay** — broadcast event type `matrix_rain` showing all non-owner users a 5-second full-screen green Matrix-style digit rain overlay; (43) **Swap Avatars** — broadcast `globalchat_swap_avatars` (30 seconds) that renders every user's avatar initial letter replaced with a random different letter from A–Z; (44) **Typewriter Effect** — broadcast `globalchat_typewriter` (60 seconds) applying a CSS typewriter reveal animation to new incoming message text; (45) **Fake Countdown** — post a system message '⏳ Server event starting in: 10... 9... 8...' then post follow-up bot messages counting down to 1, then '🎉 Nothing happened. Enjoy your day.'; (46) **Time Warp** — broadcast `globalchat_time_warp` (30 seconds) overriding all displayed message timestamps to show a random past date/time (visual only, stored timestamps unchanged); (47) **Glitch Text** — broadcast `globalchat_glitch_text` (20 seconds) applying a CSS glitch/flicker animation to all message text; (48) **Fake Loading Bar** — post a bot message showing a text-art loading bar: '⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛ 0% Loading awesomeness...' followed by '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 100% Done! (nothing changed lol)'; (49) **Impersonate System** — post a message styled exactly like a system/join-leave message but with custom admin-entered text, attributed to 'System'; (50) **Chaos Mode** — simultaneously activate Rainbow Mode, Flip Chat, Shake Messages, Big Head Mode, Comic Sans, Disco Mode, and Party Mode all at once for their respective default durations by triggering all their stored localStorage keys and broadcasting all their events in one action.",
+      "reqIds": [
+        "REQ-47"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-20",
+      "summary": "Update `ChatArea.tsx` and `ChatPage.tsx` to read and apply all new visual effect states introduced by REQ-46 and REQ-47. For each timed localStorage key (`globalchat_jumbo_text`, `globalchat_tiny_text`, `globalchat_mirror_text`, `globalchat_flip_names`, `globalchat_invisible_ink`, `globalchat_disco_mode`, `globalchat_comic_sans`, `globalchat_reverse_order`, `globalchat_earthquake`, `globalchat_zoom_pulse`, `globalchat_all_caps`, `globalchat_no_caps`, `globalchat_reverse_names`, `globalchat_bold_text`, `globalchat_italic_text`, `globalchat_blur_text`, `globalchat_shuffle_names`, `globalchat_rotate_msgs`, `globalchat_noodle`, `globalchat_colorblind`, `globalchat_strobe`, `globalchat_fake_user_count`, `globalchat_ghost_cursor`, `globalchat_random_fonts`, `globalchat_spin_logo`, `globalchat_swap_avatars`, `globalchat_typewriter`, `globalchat_time_warp`, `globalchat_glitch_text`): on component mount and on BroadcastChannel events, read the key, check expiry, and apply the corresponding CSS class or inline style. Auto-remove expired effects every 5 seconds. Subscribe to BroadcastChannel for one-shot overlay events (`fake_error`, `fake_hack`, `fake_disconnect`, `matrix_rain`) and render the appropriate short-lived full-screen overlay components for non-owner users. Also apply persistent-state flags from REQ-46 (`globalchat_readonly`, `globalchat_global_mute`, `globalchat_invite_code`, `globalchat_max_msg_len`, `globalchat_rate_limit`, `globalchat_flood_guard`, `globalchat_loser_badge`, `globalchat_server_desc`, `globalchat_server_icon`, `globalchat_mods`, `globalchat_joinleave`) in their respective UI locations.",
+      "reqIds": [
+        "REQ-48"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-21",
+      "summary": "Add all required CSS animations and utility classes to `frontend/src/index.css` and `frontend/tailwind.config.js` to support the new visual effects: (1) a `jumbo-text` class setting `font-size: 2em`; (2) a `tiny-text` class setting `font-size: 0.6em`; (3) a `mirror-text` class applying `transform: scaleX(-1)`; (4) a `flip-names` class applying `transform: rotate(180deg)` scoped to username elements; (5) an `invisible-ink` class setting `color: transparent` with a hover rule restoring color; (6) a `disco-mode` keyframe animation rapidly cycling background through 6+ colors applied to the chat container; (7) a `comic-sans` class overriding `font-family: 'Comic Sans MS', cursive`; (8) an `earthquake` keyframe animation with rapid translate shake applied to the chat container; (9) a `zoom-pulse` keyframe animation cycling scale 1.0→1.03→1.0; (10) a `blur-text` class applying `filter: blur(3px)` with a hover rule removing blur; (11) a `rotate-msg` class applying `transform: rotate(5deg)` to alternate message cards; (12) a `noodle-wave` keyframe animation with CSS skew/translate wave; (13) a `colorblind-sim` class applying `filter: grayscale(1)` to the chat area; (14) a `strobe-flash` keyframe animation alternating background between white and `#313338`; (15) a `glitch-flicker` keyframe animation for text glitch effect; (16) a `typewriter` animation class for reveal of text; (17) a `spin-logo` keyframe animation for continuous rotation; (18) a `matrix-rain` overlay style for the green digit rain effect.",
+      "reqIds": [
+        "REQ-49"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-22",
+      "summary": "Restore the previously removed admin commands (server shutdown, start up server, ban, unban, mute, unmute, slow mode, disable slow mode, lock chat, unlock chat, mass mute, mass unmute, and other removed commands) back into AdminPanel.tsx, and add 10 new serious server-management commands including 'Give Admin' (grant admin/mod privileges to a user), 'Take Admin' (revoke admin/mod privileges), and 8 other serious management commands",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-23",
+      "summary": "Restore the previously removed server shutdown/startup command set to AdminPanel.tsx. Add a 'Shutdown Server' command where AI.Caffeine enters a duration (mm:ss, capped at 50 minutes) and an optional shutdown message, then clicks 'Shutdown Server'. This writes shutdown state to localStorage `globalchat_server_state` (fields: `isShutdown: boolean`, `shutdownUntil: number | null`, `shutdownBy: string`, `shutdownMessage: string`) and broadcasts via the `globalchat_server_control` BroadcastChannel. Add a 'Start Up Server' command visible only when the server is currently shut down; clicking it sets `isShutdown: false` in `globalchat_server_state` and broadcasts the startup event. Both commands must show inline success/error feedback.",
+      "reqIds": [
+        "REQ-50"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-24",
+      "summary": "Restore the shutdown and startup overlay components (ShutdownOverlay.tsx, StartupOverlay.tsx, OwnerShutdownBanner.tsx) and wire them back into ChatPage.tsx. When `globalchat_server_state` has `isShutdown: true` and `Date.now() < shutdownUntil`, non-owner users (any username that is not `AI.Caffeine`) must see a full-screen black overlay displaying: (1) a large '🔴 Server Shut Down' title, (2) the `shutdownMessage` if provided, (3) a live mm:ss countdown timer decrementing every second. All message input must be blocked while the overlay is active. When AI.Caffeine is the current user, show a non-blocking warning banner at the top of the chat with the countdown and a 'Start Up Now' quick-action button instead. When the server transitions from shutdown to running (via admin command or timer expiry), non-owner users see a full-screen green overlay '🟢 Server Starting Up...' for exactly 5 seconds before the normal UI is restored.",
+      "reqIds": [
+        "REQ-51"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-25",
+      "summary": "Restore the useServerState hook in `frontend/src/hooks/useServerState.ts` to a fully working implementation. On component mount, read the current server state from `globalchat_server_state` in localStorage and immediately apply the shutdown overlay if `isShutdown: true` and `Date.now() < shutdownUntil`. Subscribe to the `globalchat_server_control` BroadcastChannel for real-time state changes (shutdown, startup) and update React state accordingly. The shutdown/startup overlay visibility must be derived from React state so re-renders occur correctly when state changes. When `shutdownUntil` is reached naturally (timer expires), automatically set `isShutdown: false` and broadcast the startup event.",
+      "reqIds": [
+        "REQ-52"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-26",
+      "summary": "Restore the manual Ban and Unban commands to AdminPanel.tsx. Add a 'Ban' command where AI.Caffeine enters a username and optional duration (default 10 minutes), and clicking 'Ban' stores the ban in `globalchat_bans` localStorage as a JSON object with username, expiry timestamp, and reason. Add an 'Unban' command that removes a specific username's entry from `globalchat_bans`. Both commands must show inline success/error feedback.",
+      "reqIds": [
+        "REQ-53"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-27",
+      "summary": "Restore the Mute, Unmute, Mass Mute, and Mass Unmute commands to AdminPanel.tsx. 'Mute' accepts a username and duration (default 10 minutes), storing muted usernames and expiry timestamps in `globalchat_mutes` localStorage as a JSON object. 'Unmute' removes a username from `globalchat_mutes`. 'Mass Mute' mutes all currently known users in `globalchat_users` for a configurable duration. 'Mass Unmute' clears all entries from `globalchat_mutes`. All four commands must show inline success/error feedback. MessageInputBar.tsx must enforce mute status: on every send attempt by a non-bot, check `globalchat_mutes` for the current username; if a valid non-expired mute entry exists, block the message and show 'You are muted for X minutes.' Expired mute entries must be pruned automatically.",
+      "reqIds": [
+        "REQ-54"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-28",
+      "summary": "Restore the Slow Mode, Disable Slow Mode, Lock Chat, and Unlock Chat commands to AdminPanel.tsx. 'Slow Mode' accepts a cooldown in seconds and stores it in `globalchat_slowmode`, broadcasting the change to all tabs. 'Disable Slow Mode' removes `globalchat_slowmode`. 'Lock Chat' stores `globalchat_locked: true` and broadcasts it, preventing all non-owner users from sending messages. 'Unlock Chat' removes the lock and broadcasts it. MessageInputBar.tsx must enforce all three: (1) block sending when `globalchat_locked` is true for non-owner users with inline notice 'Chat is locked.'; (2) enforce slow mode cooldown from `globalchat_slowmode` with inline notice 'Please wait X seconds before sending another message.'; (3) block sending when the server is shut down (non-owner users only). All commands must show inline success/error feedback.",
+      "reqIds": [
+        "REQ-55"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-29",
+      "summary": "Add a 'Give Admin' command to AdminPanel.tsx exclusively for AI.Caffeine. The admin enters a target username and clicks 'Give Admin'. This stores the username in a `globalchat_admins` JSON array in localStorage and broadcasts the change via `globalchat_server_control` BroadcastChannel with event type `admin_granted`. Users listed in `globalchat_admins` receive a special 🛡️ Admin badge displayed next to their username in chat messages and in the sidebar user list. The admin panel button in TopBar.tsx should also be visible to users in `globalchat_admins` (read-only view without destructive commands). Show inline success/error feedback.",
+      "reqIds": [
+        "REQ-56"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-30",
+      "summary": "Add a 'Take Admin' command to AdminPanel.tsx exclusively for AI.Caffeine. The admin enters a target username and clicks 'Take Admin'. This removes the username from the `globalchat_admins` JSON array in localStorage and broadcasts the change via `globalchat_server_control` BroadcastChannel with event type `admin_revoked`. The 🛡️ Admin badge must immediately disappear for the affected user across all open tabs. The admin panel button must no longer be accessible to that user. Show inline success/error feedback.",
+      "reqIds": [
+        "REQ-57"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-31",
+      "summary": "Add a 'Force Logout User' command to AdminPanel.tsx exclusively for AI.Caffeine. The admin enters a target username and clicks 'Force Logout'. This broadcasts a `globalchat_force_logout` event via `globalchat_server_control` BroadcastChannel containing the target username. In ChatPage.tsx (and App.tsx), subscribe to this event: if the current session username matches the target, immediately clear `globalchat_session` from localStorage and redirect the user to the LandingPage. Show inline success feedback in the admin panel.",
+      "reqIds": [
+        "REQ-58"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-32",
+      "summary": "Add a 'Delete User Account' command to AdminPanel.tsx exclusively for AI.Caffeine. The admin enters a target username and clicks 'Delete Account'. This removes the username's entry from `globalchat_users` localStorage. If the deleted user is currently logged in (has an active `globalchat_session` matching the username), also broadcast a force-logout event via `globalchat_server_control` to clear their session. The `AI.Caffeine` account must be protected and cannot be deleted. Show inline success/error feedback.",
+      "reqIds": [
+        "REQ-59"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-33",
+      "summary": "Add a 'Reset User Password' command to AdminPanel.tsx exclusively for AI.Caffeine. The admin enters a target username and a new password, then clicks 'Reset Password'. This overwrites the stored credential for that username in `globalchat_users` localStorage using the same base64-encoding scheme used by auth.ts. Show inline success/error feedback. The `AI.Caffeine` account password cannot be reset via this command.",
+      "reqIds": [
+        "REQ-60"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-34",
+      "summary": "Add a 'View All Users' command to AdminPanel.tsx exclusively for AI.Caffeine. Clicking this displays an inline list of all registered usernames from `globalchat_users` localStorage, showing each username, whether they are currently in `globalchat_admins`, whether they are in `globalchat_mods`, and whether they have an active ban in `globalchat_bans`. The list must refresh each time the button is clicked.",
+      "reqIds": [
+        "REQ-61"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-35",
+      "summary": "Add a 'Promote to Mod' and 'Demote from Mod' command pair to AdminPanel.tsx exclusively for AI.Caffeine. 'Promote to Mod' stores a username in a `globalchat_mods` JSON array in localStorage and posts a system message in global chat: '🛡️ [username] has been promoted to Moderator'. 'Demote from Mod' removes the username from `globalchat_mods` and posts a system message: '🛡️ [username] has been demoted from Moderator'. Users in `globalchat_mods` display a 🛡️ Mod badge (distinct from the Admin badge) next to their username in chat messages and the sidebar user list. Both commands show inline success/error feedback.",
+      "reqIds": [
+        "REQ-62"
+      ],
       "status": "pending"
     }
   ],

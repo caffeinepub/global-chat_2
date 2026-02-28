@@ -1,206 +1,54 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Remove G.AI Chat Button & Replace Broken Admin Commands with 30 Fun New Commands",
+  "title": "Fix blank page on new tab/window open",
   "requirements": [
     {
-      "id": "REQ-42",
-      "summary": "Remove the floating 'G.AI Chat' button and AIChatPanel entirely from the UI while preserving @G.ai mention detection in global chat",
+      "id": "REQ-76",
+      "summary": "Fix blank page issue in App.tsx by ensuring session check on mount correctly reads localStorage and transitions to the appropriate page without rendering a blank screen",
       "acceptanceCriteria": [
-        "No floating G.AI Chat button is visible anywhere in the chat UI",
-        "No AI chat panel or modal opens from any button",
-        "@G.ai mentions in the global chat still trigger bot responses as before",
-        "No console errors related to missing AI chat panel components"
+        "Opening the app URL in a brand new browser tab renders either the LandingPage (if no active session) or the ChatPage (if a valid session exists) — never a blank white or black screen.",
+        "The loading spinner (if shown) always resolves within a short time and transitions to the correct page.",
+        "The session check in App.tsx reads `globalchat_session` from localStorage synchronously or with a brief async check, and sets the correct page state before the first meaningful render.",
+        "The fix works consistently across Chrome, Firefox, and mobile browsers when opening a new tab."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/ChatPage.tsx",
+          "path": "frontend/src/App.tsx",
           "operation": "modify",
-          "description": "Remove all imports, state variables, and render logic related to AIChatButton and AIChatPanel components. Remove the useState for aiChatOpen and all associated click handlers. Keep the useAIMentionDetector hook intact as it handles @G.ai mentions in global chat. Ensure TopBar, Sidebar, ChatArea, and MessageInputBar remain fully wired and functional."
-        },
-        {
-          "path": "frontend/src/components/AIChatButton.tsx",
-          "operation": "delete",
-          "description": "Delete the floating G.AI Chat button component file entirely as it is no longer needed."
-        },
-        {
-          "path": "frontend/src/components/AIChatPanel.tsx",
-          "operation": "delete",
-          "description": "Delete the private AI chat panel component file entirely as it is no longer needed."
+          "description": "Refactor the session check logic to ensure it reads `globalchat_session` from localStorage synchronously on mount and immediately sets the correct page state (LandingPage or ChatPage) without leaving the app in a blank loading state. Wrap localStorage access in try-catch to handle corrupted data gracefully. Ensure the loading state resolves quickly and transitions correctly, preventing the app from remaining stuck in a blank state after the session check completes."
         }
       ]
     },
     {
-      "id": "REQ-43",
-      "summary": "Replace all broken admin commands with 30 new fully-working fun and creative admin commands accessible only to AI.Caffeine",
+      "id": "REQ-77",
+      "summary": "Audit index.html and main.tsx to ensure React app mounts correctly on all page loads without silent failures",
       "acceptanceCriteria": [
-        "All previously broken commands (mute, unmute, mass mute, mass unmute, ban, unban, server shutdown, start up server, slow mode, lock chat, unlock chat) are removed from the Admin Panel UI",
-        "No broken hook imports or calls remain for removed commands",
-        "The Admin Panel contains exactly 30 new fun commands, each with appropriate input fields where needed",
-        "Each command shows inline success or error feedback when triggered",
-        "Rainbow Mode causes message text to cycle through rainbow colors visibly for 60 seconds across all tabs",
-        "Confetti Blast shows a particle animation on all open tabs for ~3 seconds",
-        "Flip Chat inverts the chat area for 30 seconds across all tabs",
-        "VIP Crown badge (👑) appears next to the target username in their messages after the command",
-        "Ghost Mode renders the target user's messages at reduced opacity with a 👻 icon",
-        "Freeze User blocks message sending for the target username with an inline warning",
-        "Balloon Message appears with festive styling and balloon emojis in the global chat",
-        "Summon Bot posts a random fun fact or joke from G.AI 🤖 without user input",
-        "Neon/Retro theme overrides apply visually across the app when triggered",
-        "Random Nickname appends a bracketed nickname to the target username for 10 minutes",
-        "Server Birthday shows a full-screen birthday overlay for 5 seconds to non-owner users",
-        "Server Stats posts accurate counts of messages and users",
-        "Clear Admin Log wipes the mod log and shows confirmation",
-        "All 30 commands are only visible and accessible when logged in as AI.Caffeine"
+        "No JavaScript errors appear in the browser console on initial page load in a new tab.",
+        "The React app mounts successfully and renders content without requiring a page refresh.",
+        "The `root` div in `index.html` is correctly targeted by the React entry point."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/AdminPanel.tsx",
+          "path": "frontend/index.html",
           "operation": "modify",
-          "description": "Remove all tabs and UI sections for broken commands (ban/unban, mute/unmute, mass mute/unmute, slow mode, chat lock, server shutdown/startup). Remove imports for useBanManager, useMuteManager, useServerState, useChatLock, useSlowMode, and useAdminCommands. Replace with a completely new UI containing 30 fun command sections organized in tabs or accordion groups: (1) Rainbow Mode - button with 60s duration; (2) Confetti Blast - instant trigger button; (3) Flip Chat - button with 30s duration; (4) Shake Messages - button with 10s duration; (5) Big Head Mode - button with 60s duration; (6) Ghost Mode - username input + duration selector (default 5 min); (7) VIP Crown - username input + button; (8) Remove VIP - username input + button; (9) Party Mode - button with 60s duration; (10) Freeze User - username input + duration input (default 5 min); (11) Unfreeze User - username input + button; (12) Balloon Message - text input + send button; (13) Summon Bot - instant button; (14) Weather Announce - dropdown with weather presets + button; (15) Change Avatar Color - username input + color picker; (16) Reset Avatar Color - username input + button; (17) Neon Theme - button; (18) Retro Theme - button; (19) Reset Theme - button; (20) Spotlight User - username input + button; (21) Random Nickname - username input + nickname input + button; (22) Remove Nickname - username input + button; (23) Server Birthday - instant button; (24) Trivia Question - question input + 4 option inputs + button; (25) Count Messages - display-only counter; (26) Word of the Day - word input + definition textarea + button; (27) Mystery Box - instant button; (28) Typing Indicator Flood - instant button; (29) Server Stats - instant button; (30) Clear Admin Log - button with confirmation. Each command handler must write to localStorage with appropriate keys (globalchat_rainbow_mode, globalchat_flip_mode, globalchat_bighead, globalchat_ghost_users, globalchat_vip_users, globalchat_frozen, globalchat_avatar_colors, globalchat_theme, globalchat_nicknames, globalchat_mod_log) and broadcast via BroadcastChannel. Show inline toast or status messages for success/error feedback."
-        },
-        {
-          "path": "frontend/src/hooks/useFunCommands.ts",
-          "operation": "create",
-          "description": "Create a custom hook that provides all 30 fun command handlers as callbacks. Each handler reads/writes localStorage with expiry timestamps where applicable, broadcasts state changes via broadcastControl, and posts system/bot messages to globalchat_messages when required. Include utility functions for expiry checking, random selection (for Mystery Box, Summon Bot), and timestamp formatting. Return an object with named command functions that AdminPanel can call directly."
-        },
-        {
-          "path": "frontend/src/index.css",
-          "operation": "modify",
-          "description": "Add CSS keyframe animations and utility classes for Rainbow Mode (rainbow text cycling animation using hue-rotate or color transitions), Shake Messages (shake transform animation), Party Mode (background color cycling animation), Confetti Blast (particle animation styles), and Server Birthday overlay (full-screen birthday animation with 🎂 emoji and celebratory styling). Use @keyframes and apply via dynamic class names or inline styles."
+          "description": "Verify that the root `<div id='root'>` element is present and correctly configured. Add error boundary markup or fallback content if needed to prevent silent mounting failures."
         }
       ]
     },
     {
-      "id": "REQ-44",
-      "summary": "Update ChatArea and ChatPage to read and apply all 30 new fun admin state effects from localStorage and BroadcastChannel in real-time",
+      "id": "REQ-78",
+      "summary": "Ensure auth.ts initializes synchronously without throwing errors by wrapping localStorage operations in try-catch blocks",
       "acceptanceCriteria": [
-        "Rainbow text animation is visible on all messages when Rainbow Mode is active",
-        "Chat area appears flipped when Flip Chat is active",
-        "Avatars are visibly larger when Big Head Mode is active",
-        "Ghost Mode messages are visually distinct with reduced opacity and 👻 icon",
-        "VIP Crown 👑 badge is visible next to VIP usernames in the message list",
-        "Nicknames appear in brackets after usernames when set and not expired",
-        "Custom avatar colors override the default color for the specified user",
-        "Typing indicator appears briefly with fake names when Typing Indicator Flood is triggered",
-        "Confetti and Birthday animations render on non-owner tabs when broadcast",
-        "Theme changes (neon, retro, reset) apply immediately without page reload"
+        "The auth module loads without throwing exceptions even if localStorage contains malformed data.",
+        "Errors in `auth.ts` initialization do not prevent the React app from rendering.",
+        "The app renders correctly even if localStorage is empty (fresh browser profile or incognito mode)."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/ChatArea.tsx",
+          "path": "frontend/src/lib/auth.ts",
           "operation": "modify",
-          "description": "Add state subscriptions for all fun effects using useState and useEffect with BroadcastChannel listeners. Read from localStorage on mount for: globalchat_rainbow_mode, globalchat_flip_mode, globalchat_bighead, globalchat_ghost_users, globalchat_vip_users, globalchat_nicknames, globalchat_avatar_colors, globalchat_theme. Apply conditional CSS classes or inline styles: (1) Rainbow Mode - add rainbow animation class to message text when active and not expired; (2) Flip Chat - apply transform: scaleY(-1) or rotate(180deg) to the chat container when active; (3) Big Head Mode - multiply avatar size by 3x when active; (4) Ghost Mode - render matching usernames' messages at 30% opacity with 👻 prefix; (5) VIP Crown - render 👑 badge inline next to usernames in globalchat_vip_users; (6) Random Nickname - append bracketed nickname from globalchat_nicknames after username if set and not expired; (7) Custom Avatar Color - use custom hex color from globalchat_avatar_colors for avatar circles; (8) Shake Messages - apply shake animation class when active. Subscribe to BroadcastChannel 'globalchat_server_control' for real-time updates and re-render when events are received. Check expiry timestamps and remove expired effects automatically."
-        },
-        {
-          "path": "frontend/src/components/ChatPage.tsx",
-          "operation": "modify",
-          "description": "Add state and BroadcastChannel listeners for Confetti Blast, Server Birthday overlay, Typing Indicator Flood, and Party Mode. (1) Confetti Blast - render a full-screen confetti particle overlay component for 3 seconds when 'confetti_blast' event is received; (2) Server Birthday - render a full-screen birthday overlay with 🎂 emoji and 'Happy Birthday!' text for 5 seconds when 'server_birthday' event is received, but only show to non-owner users (check session username against 'AI.Caffeine'); (3) Typing Indicator Flood - show a typing indicator bar with 3 fake usernames for 5 seconds when 'typing_flood' event is received; (4) Party Mode - apply a background color cycling animation to Sidebar and TopBar for 60 seconds when globalchat_party_mode is active. Subscribe to BroadcastChannel on mount and clean up on unmount."
-        },
-        {
-          "path": "frontend/src/components/Sidebar.tsx",
-          "operation": "modify",
-          "description": "Add VIP Crown badge rendering in the online users list. Read globalchat_vip_users from localStorage and subscribe to BroadcastChannel updates. For each username in the online users list, if it appears in globalchat_vip_users, render a 👑 badge inline next to the username. Apply Party Mode background animation when globalchat_party_mode is active."
-        },
-        {
-          "path": "frontend/src/components/TopBar.tsx",
-          "operation": "modify",
-          "description": "Apply Party Mode background color cycling animation to the TopBar container when globalchat_party_mode is active. Read from localStorage on mount and subscribe to BroadcastChannel for real-time updates."
-        },
-        {
-          "path": "frontend/src/components/ConfettiBurst.tsx",
-          "operation": "create",
-          "description": "Create a full-screen overlay component that renders a confetti particle animation using CSS or a lightweight animation library. Auto-dismiss after 3 seconds. Use absolute positioning with high z-index to overlay the entire viewport."
-        },
-        {
-          "path": "frontend/src/components/BirthdayOverlay.tsx",
-          "operation": "create",
-          "description": "Create a full-screen overlay component that displays a celebratory birthday animation with 🎂 emoji and 'Happy Birthday!' text in large festive fonts. Auto-dismiss after 5 seconds. Use absolute positioning with high z-index to overlay the entire viewport."
-        },
-        {
-          "path": "frontend/src/components/TypingIndicatorBar.tsx",
-          "operation": "create",
-          "description": "Create a slim horizontal bar component that displays 'Username1, Username2, Username3 are typing...' with animated dots. Accept an array of fake usernames as props and render for a fixed duration. Position at the bottom of the chat area or above the message input bar."
-        },
-        {
-          "path": "frontend/tailwind.config.js",
-          "operation": "modify",
-          "description": "Add custom theme color tokens for Neon Theme (bright green/pink accents on dark background) and Retro Theme (orange and teal colors). Extend the existing theme configuration with additional color variables that can be applied dynamically via CSS classes when globalchat_theme is set to 'neon' or 'retro'."
-        }
-      ]
-    },
-    {
-      "id": "REQ-45",
-      "summary": "Remove all remaining references to broken admin commands and their enforcement logic, keeping only AI moderation auto-ban and the new freeze command",
-      "acceptanceCriteria": [
-        "No shutdown overlay, startup overlay, or owner shutdown banner renders anywhere in the app",
-        "No slow mode warning appears in MessageInputBar",
-        "No mute warning appears in MessageInputBar (only auto-moderation ban warning remains)",
-        "No chat lock warning appears in MessageInputBar",
-        "Freeze command warning ('You are frozen for X minutes') appears correctly when applicable",
-        "Auto-moderation ban warning from OpenAI moderation still works correctly",
-        "No console errors from missing or unused component imports"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/MessageInputBar.tsx",
-          "operation": "modify",
-          "description": "Remove all enforcement checks and warnings for: slow mode (useSlowMode), mute (useMuteManager), chat lock (useChatLock), and server shutdown (useServerState). Remove corresponding hook imports. Keep only: (1) auto-ban enforcement from useChatModeration (reading globalchat_bans); (2) new freeze enforcement reading from globalchat_frozen with expiry check. Display 'You are frozen for X minutes' warning when the current username is in globalchat_frozen and not expired. Display 'You are banned for violating community guidelines' when the current username is in globalchat_bans. All other enforcement logic must be removed."
-        },
-        {
-          "path": "frontend/src/components/ShutdownOverlay.tsx",
-          "operation": "delete",
-          "description": "Delete the server shutdown overlay component entirely as server shutdown commands are removed."
-        },
-        {
-          "path": "frontend/src/components/StartupOverlay.tsx",
-          "operation": "delete",
-          "description": "Delete the server startup overlay component entirely as server shutdown commands are removed."
-        },
-        {
-          "path": "frontend/src/components/OwnerShutdownBanner.tsx",
-          "operation": "delete",
-          "description": "Delete the owner shutdown banner component entirely as server shutdown commands are removed."
-        },
-        {
-          "path": "frontend/src/pages/ChatPage.tsx",
-          "operation": "modify",
-          "description": "Remove all imports and render logic for ShutdownOverlay, StartupOverlay, and OwnerShutdownBanner components. Remove useServerState hook import and all associated state variables. Ensure the main chat UI (Sidebar, TopBar, ChatArea, MessageInputBar) remains fully functional without any shutdown-related overlays or banners."
-        },
-        {
-          "path": "frontend/src/hooks/useBanManager.ts",
-          "operation": "delete",
-          "description": "Delete the manual ban manager hook entirely as manual ban/unban commands are removed. Auto-moderation ban logic in useChatModeration remains intact."
-        },
-        {
-          "path": "frontend/src/hooks/useMuteManager.ts",
-          "operation": "delete",
-          "description": "Delete the mute manager hook entirely as mute/unmute commands are removed."
-        },
-        {
-          "path": "frontend/src/hooks/useSlowMode.ts",
-          "operation": "delete",
-          "description": "Delete the slow mode hook entirely as slow mode commands are removed."
-        },
-        {
-          "path": "frontend/src/hooks/useChatLock.ts",
-          "operation": "delete",
-          "description": "Delete the chat lock hook entirely as lock/unlock chat commands are removed."
-        },
-        {
-          "path": "frontend/src/hooks/useServerState.ts",
-          "operation": "delete",
-          "description": "Delete the server state hook entirely as server shutdown/startup commands are removed."
-        },
-        {
-          "path": "frontend/src/hooks/useAdminCommands.ts",
-          "operation": "delete",
-          "description": "Delete the old admin commands hook entirely as all broken commands are removed and replaced by useFunCommands."
-        },
-        {
-          "path": "frontend/src/lib/serverState.ts",
-          "operation": "delete",
-          "description": "Delete the server state utility module entirely as server shutdown/startup commands are removed."
+          "description": "Wrap all localStorage reads and writes in try-catch blocks to prevent initialization failures from crashing the app. Ensure the `seedOwnerAccount` call and any other localStorage operations handle errors gracefully, returning safe defaults when localStorage is unavailable, corrupted, or empty (e.g., fresh browser profile or incognito mode)."
         }
       ]
     }

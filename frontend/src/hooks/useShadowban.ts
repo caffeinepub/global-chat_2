@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react';
-import { getShadowbanned } from '../lib/adminState';
-import { subscribeToBroadcast, unsubscribeFromBroadcast } from '../lib/broadcastControl';
+
+function readShadowbans(): string[] {
+  try {
+    const raw = localStorage.getItem('globalchat_shadowbans');
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
 
 export function useShadowban(username: string) {
-  const [shadowbannedUsers, setShadowbannedUsers] = useState<string[]>(() => getShadowbanned());
+  const [shadowbannedUsers, setShadowbannedUsers] = useState<string[]>(readShadowbans);
 
   useEffect(() => {
-    const handler = (event: { eventType: string }) => {
-      if (event.eventType === 'shadowban') {
-        setShadowbannedUsers(getShadowbanned());
+    const channel = new BroadcastChannel('globalchat_server_control');
+    channel.onmessage = (event) => {
+      const { type } = event.data || {};
+      if (type === 'shadowban' || type === 'unshadowban') {
+        setShadowbannedUsers(readShadowbans());
       }
     };
-    subscribeToBroadcast(handler);
-    return () => unsubscribeFromBroadcast(handler);
+    return () => channel.close();
   }, []);
 
   const isShadowbanned = shadowbannedUsers.includes(username);

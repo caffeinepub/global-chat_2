@@ -1,96 +1,46 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T11:53:34.819Z",
+  "generatedAt": "2026-02-28T17:05:42.459Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 4,
-    "implemented": 4,
+    "total": 3,
+    "implemented": 3,
     "items": [
       {
-        "id": "REQ-42",
-        "summary": "Remove the floating 'G.AI Chat' button and the AIChatPanel entirely from the UI. Delete or disable `AIChatButton.tsx` and `AIChatPanel.tsx` from `ChatPage.tsx`. Remove all imports, state variables, and render logic related to the private AI chat panel. The @G.ai mention detection in global chat (useAIMentionDetector) must remain intact.",
+        "id": "REQ-76",
+        "summary": "Fix the blank/empty page issue that occurs when the app is opened in a new tab or window. Audit `frontend/src/App.tsx` to ensure the session check on mount correctly reads `globalchat_session` from localStorage and transitions to either `LandingPage` or `ChatPage` without rendering a blank screen. The loading/spinner state must resolve correctly on initial render, and the app must never remain stuck in a blank state after the session check completes.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/ChatPage.tsx",
-          "frontend/src/components/AIChatButton.tsx",
-          "frontend/src/components/AIChatPanel.tsx"
+          "frontend/src/App.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/ChatPage.tsx",
-          "frontend/src/components/AIChatButton.tsx",
-          "frontend/src/components/AIChatPanel.tsx"
+          "frontend/src/App.tsx"
         ]
       },
       {
-        "id": "REQ-43",
-        "summary": "Completely replace the existing admin commands in `AdminPanel.tsx` — removing all currently broken commands (mute, unmute, mass mute, mass unmute, server shutdown, start up server, ban, unban, slow mode, disable slow mode, lock chat, unlock chat, and any others that are non-functional) — and replace them with 30 new, fully-working fun and creative admin commands. Remove all associated broken hooks and localStorage logic for the removed commands. The 30 new commands must be: (1) **Rainbow Mode** — broadcast a CSS animation that makes all message text cycle through rainbow colors for 60 seconds, stored in `globalchat_rainbow_mode` with expiry; (2) **Confetti Blast** — broadcast a one-time confetti particle animation that plays on all tabs for 3 seconds; (3) **Flip Chat** — broadcast a CSS transform that flips the entire chat area upside-down for 30 seconds, stored in `globalchat_flip_mode`; (4) **Shake Messages** — broadcast a CSS shake animation applied to all messages for 10 seconds; (5) **Big Head Mode** — broadcast a flag that makes all avatar circles 3x larger for 60 seconds, stored in `globalchat_bighead`; (6) **Ghost Mode** — make a target user's messages display with 30% opacity and a 👻 icon for 5 minutes, stored in `globalchat_ghost_users`; (7) **VIP Crown** — award a 👑 crown badge next to a target username in all their messages and in the sidebar, stored in `globalchat_vip_users`; (8) **Remove VIP** — remove the VIP crown from a target username; (9) **Party Mode** — broadcast a background color cycling animation on the sidebar and topbar for 60 seconds; (10) **Freeze User** — prevent a specific username from sending messages for a configurable duration (default 5 minutes), stored in `globalchat_frozen`; (11) **Unfreeze User** — remove the freeze from a specific username; (12) **Balloon Message** — post a special message in the global chat with floating balloon emojis (🎈🎈🎈) surrounding the text, rendered with a festive pink background; (13) **Summon Bot** — force the bot `G.AI 🤖` to post a random fun fact or joke in the global chat without any user prompt; (14) **Weather Announce** — post a system message with a custom weather status (e.g., '⛈️ It is currently stormy in the server!') chosen from a preset dropdown; (15) **Change Avatar Color** — override the avatar circle color for a specific username with a chosen hex color, stored in `globalchat_avatar_colors`; (16) **Reset Avatar Color** — remove the avatar color override for a specific username; (17) **Neon Theme** — broadcast a neon/cyberpunk CSS theme override with bright green/pink accents on dark background, stored in `globalchat_theme` as 'neon'; (18) **Retro Theme** — broadcast a retro/80s CSS theme with orange and teal colors; (19) **Reset Theme** — broadcast a reset to the default Discord dark theme; (20) **Spotlight User** — post a system message celebrating a specific user (e.g., '🌟 Spotlight: [username] is the star of the server today!') with a golden banner style; (21) **Random Nickname** — assign a temporary funny nickname displayed in brackets after the username (e.g., 'Alex [The Brave]') for 10 minutes, stored in `globalchat_nicknames`; (22) **Remove Nickname** — remove the temporary nickname for a specific username; (23) **Server Birthday** — broadcast a full-screen birthday animation overlay with 🎂 emoji and 'Happy Birthday!' text that all non-owner users see for 5 seconds; (24) **Trivia Question** — post a multiple-choice trivia question as a bot message in the global chat, with options A/B/C/D listed; (25) **Count Messages** — display inline in the admin panel the total number of messages stored in `globalchat_messages` localStorage; (26) **Word of the Day** — post a system message with a 'Word of the Day' (admin enters word + definition), styled as a dictionary-style bot message; (27) **Mystery Box** — post a bot message with a random surprise emoji reveal (🎁→ random emoji drawn from a curated list of 50 fun emojis); (28) **Typing Indicator Flood** — simulate 3 fake usernames (randomly chosen from a preset list) appearing in a typing indicator for 5 seconds; (29) **Server Stats** — post a bot message in the global chat displaying live server stats: total messages stored, number of known users in `globalchat_users`, and current timestamp; (30) **Clear Admin Log** — wipe the moderation/admin action log stored in localStorage `globalchat_mod_log` and show inline confirmation.",
+        "id": "REQ-77",
+        "summary": "Audit `frontend/src/main.tsx` entry point and `frontend/index.html` to ensure the React app mounts correctly on all page loads. Verify that the root `<div id='root'>` is always present and that the React `createRoot` call in `main.tsx` never fails silently. Ensure no uncaught JavaScript errors during initialization prevent the app from rendering.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/AdminPanel.tsx",
-          "frontend/src/hooks/useFunCommands.ts",
-          "frontend/src/index.css"
+          "frontend/index.html"
         ],
         "matchedFiles": [
-          "frontend/src/components/AdminPanel.tsx",
-          "frontend/src/hooks/useFunCommands.ts",
-          "frontend/src/index.css"
+          "frontend/index.html"
         ]
       },
       {
-        "id": "REQ-44",
-        "summary": "Update `ChatArea.tsx` and `ChatPage.tsx` to read and apply the new fun admin state from localStorage/BroadcastChannel: (1) Rainbow Mode — apply a rainbow text animation CSS class to all message text when `globalchat_rainbow_mode` is active and not expired; (2) Flip Chat — apply a CSS `transform: rotate(180deg)` or `scaleY(-1)` to the chat area container when `globalchat_flip_mode` is active; (3) Big Head Mode — render avatar circles at 3x size when `globalchat_bighead` is active; (4) Ghost Mode — render messages from users in `globalchat_ghost_users` at 30% opacity with a 👻 prefix; (5) VIP Crown — render a 👑 badge next to usernames listed in `globalchat_vip_users` in messages and sidebar; (6) Random Nickname — display the nickname from `globalchat_nicknames` in brackets after the username if set and not expired; (7) Custom Avatar Color — use the color from `globalchat_avatar_colors` for the avatar circle if set; (8) Typing Indicator Flood — show a typing indicator bar with fake usernames for 5 seconds when triggered via BroadcastChannel; (9) Confetti Blast and Server Birthday — render a short overlay animation when the corresponding broadcast event is received; (10) Neon/Retro/Reset Theme — apply the correct CSS theme class to the root layout when `globalchat_theme` changes.",
+        "id": "REQ-78",
+        "summary": "Ensure `frontend/src/lib/auth.ts` initializes synchronously without throwing errors that could block the app render. The `seedOwnerAccount` call (which seeds the `AI.Caffeine` account into `globalchat_users`) must not throw or cause unhandled exceptions if localStorage is unavailable or corrupted. Wrap any localStorage reads/writes in try-catch blocks to prevent initialization failures from crashing the app.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/ChatArea.tsx",
-          "frontend/src/components/ChatPage.tsx",
-          "frontend/src/components/Sidebar.tsx",
-          "frontend/src/components/TopBar.tsx",
-          "frontend/src/components/ConfettiBurst.tsx",
-          "frontend/src/components/BirthdayOverlay.tsx",
-          "frontend/src/components/TypingIndicatorBar.tsx",
-          "frontend/tailwind.config.js"
+          "frontend/src/lib/auth.ts"
         ],
         "matchedFiles": [
-          "frontend/src/components/ChatArea.tsx",
-          "frontend/src/components/Sidebar.tsx",
-          "frontend/src/components/TopBar.tsx",
-          "frontend/src/components/ConfettiBurst.tsx",
-          "frontend/src/components/BirthdayOverlay.tsx",
-          "frontend/src/components/TypingIndicatorBar.tsx",
-          "frontend/tailwind.config.js"
-        ]
-      },
-      {
-        "id": "REQ-45",
-        "summary": "Remove all remaining references, imports, and UI elements in `ChatPage.tsx`, `TopBar.tsx`, `Sidebar.tsx`, and `MessageInputBar.tsx` that belong to the removed commands: server shutdown overlay (`ShutdownOverlay.tsx`, `StartupOverlay.tsx`, `OwnerShutdownBanner.tsx`), slow mode enforcement, mute enforcement, chat lock enforcement, and ban enforcement tied to the removed admin commands. Keep only: (1) the auto-ban from AI moderation (`useChatModeration`) which is still active, (2) the OpenAI API key prompt, (3) the @G.ai mention detector, and (4) the existing authentication/logout flow. Ensure the message sending flow in `MessageInputBar.tsx` only enforces the AI moderation ban (from `globalchat_bans`) and the new freeze command (from `globalchat_frozen`).",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/MessageInputBar.tsx",
-          "frontend/src/components/ShutdownOverlay.tsx",
-          "frontend/src/components/StartupOverlay.tsx",
-          "frontend/src/components/OwnerShutdownBanner.tsx",
-          "frontend/src/pages/ChatPage.tsx",
-          "frontend/src/hooks/useBanManager.ts",
-          "frontend/src/hooks/useMuteManager.ts",
-          "frontend/src/hooks/useSlowMode.ts",
-          "frontend/src/hooks/useChatLock.ts",
-          "frontend/src/hooks/useServerState.ts",
-          "frontend/src/hooks/useAdminCommands.ts",
-          "frontend/src/lib/serverState.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/MessageInputBar.tsx",
-          "frontend/src/pages/ChatPage.tsx",
-          "frontend/src/hooks/useBanManager.ts",
-          "frontend/src/hooks/useMuteManager.ts",
-          "frontend/src/hooks/useSlowMode.ts",
-          "frontend/src/hooks/useChatLock.ts",
-          "frontend/src/hooks/useServerState.ts",
-          "frontend/src/hooks/useAdminCommands.ts"
+          "frontend/src/lib/auth.ts"
         ]
       }
     ]
@@ -100,27 +50,9 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/components/AIChatButton.tsx",
-    "frontend/src/components/AIChatPanel.tsx",
-    "frontend/src/components/AdminPanel.tsx",
-    "frontend/src/components/BirthdayOverlay.tsx",
-    "frontend/src/components/ChatArea.tsx",
-    "frontend/src/components/ConfettiBurst.tsx",
-    "frontend/src/components/MessageInputBar.tsx",
-    "frontend/src/components/Sidebar.tsx",
-    "frontend/src/components/TopBar.tsx",
-    "frontend/src/components/TypingIndicatorBar.tsx",
-    "frontend/src/hooks/useAdminCommands.ts",
-    "frontend/src/hooks/useBanManager.ts",
-    "frontend/src/hooks/useChatLock.ts",
-    "frontend/src/hooks/useChatModeration.ts",
-    "frontend/src/hooks/useFunCommands.ts",
-    "frontend/src/hooks/useMuteManager.ts",
-    "frontend/src/hooks/useServerState.ts",
-    "frontend/src/hooks/useSlowMode.ts",
-    "frontend/src/index.css",
-    "frontend/src/pages/ChatPage.tsx",
-    "frontend/tailwind.config.js",
+    "frontend/index.html",
+    "frontend/src/App.tsx",
+    "frontend/src/lib/auth.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

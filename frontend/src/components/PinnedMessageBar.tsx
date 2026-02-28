@@ -1,30 +1,32 @@
-import { Pin, X } from 'lucide-react';
-import { ChatMessage } from '../types/chat';
+import { Pin, X } from "lucide-react";
 
 interface PinnedMessageBarProps {
-  messageId: string;
-  messages: ChatMessage[];
-  onDismiss?: () => void;
+  message: {
+    id: string;
+    username: string;
+    text: string;
+  };
+  onUnpin: () => void;
+  isOwner: boolean;
 }
 
-export default function PinnedMessageBar({ messageId, messages, onDismiss }: PinnedMessageBarProps) {
-  const message = messages.find(m => m.id === messageId);
-  if (!message) return null;
-
+export default function PinnedMessageBar({ message, onUnpin, isOwner }: PinnedMessageBarProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-dc-accent/10 border-b border-dc-accent/20 shrink-0">
-      <Pin className="w-3.5 h-3.5 text-dc-accent shrink-0" />
+    <div className="flex items-center gap-3 px-4 py-2 bg-discord-sidebar border-b border-discord-border">
+      <Pin size={14} className="text-discord-accent shrink-0" />
       <div className="flex-1 min-w-0">
-        <span className="text-dc-accent text-xs font-semibold mr-1.5">📌 Pinned</span>
-        <span className="text-dc-text-secondary text-xs font-medium mr-1">{message.username}:</span>
-        <span className="text-dc-text text-xs truncate">{message.text}</span>
+        <span className="text-xs text-discord-muted mr-1">📌 Pinned from</span>
+        <span className="text-xs font-semibold text-discord-accent">{message.username}</span>
+        <span className="text-xs text-discord-muted">: </span>
+        <span className="text-xs text-discord-text truncate">{message.text}</span>
       </div>
-      {onDismiss && (
+      {isOwner && (
         <button
-          onClick={onDismiss}
-          className="text-dc-muted hover:text-white transition-colors shrink-0"
+          onClick={onUnpin}
+          className="text-discord-muted hover:text-discord-text transition-colors shrink-0"
+          title="Unpin message"
         >
-          <X className="w-3.5 h-3.5" />
+          <X size={14} />
         </button>
       )}
     </div>

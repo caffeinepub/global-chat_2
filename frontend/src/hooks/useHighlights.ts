@@ -1,32 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getHighlights, HighlightEntry } from '../lib/adminState';
-import { subscribeToBroadcast, unsubscribeFromBroadcast } from '../lib/broadcastControl';
+
+function readHighlights(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('globalchat_highlights');
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
 
 export function useHighlights() {
-  const [activeHighlights, setActiveHighlights] = useState<HighlightEntry[]>(() => getHighlights());
+  const [highlights, setHighlights] = useState<Record<string, string>>(readHighlights);
 
   useEffect(() => {
-    const handler = (event: { eventType: string }) => {
-      if (event.eventType === 'highlights') {
-        setActiveHighlights(getHighlights());
+    const channel = new BroadcastChannel('globalchat_server_control');
+    channel.onmessage = (event) => {
+      const { type } = event.data || {};
+      if (type === 'highlight_user') {
+        setHighlights(readHighlights());
       }
     };
-    subscribeToBroadcast(handler);
-    return () => unsubscribeFromBroadcast(handler);
-  }, []);
-
-  // Prune expired highlights every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveHighlights(getHighlights());
-    }, 10000);
-    return () => clearInterval(interval);
+    return () => channel.close();
   }, []);
 
   const isUserHighlighted = useCallback((username: string): string | null => {
-    const entry = activeHighlights.find(h => h.username === username && h.expiresAt > Date.now());
-    return entry ? entry.color : null;
-  }, [activeHighlights]);
+    return highlights[username] ?? null;
+  }, [highlights]);
 
-  return { activeHighlights, isUserHighlighted };
+  return { highlights, isUserHighlighted };
 }

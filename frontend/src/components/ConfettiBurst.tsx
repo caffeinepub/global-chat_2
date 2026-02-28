@@ -1,59 +1,45 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 interface Particle {
   id: number;
   x: number;
-  y: number;
   color: string;
   size: number;
-  speedX: number;
-  speedY: number;
-  rotation: number;
-  rotationSpeed: number;
+  duration: number;
+  delay: number;
 }
 
-const COLORS = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6bff', '#ff9f43', '#00d2d3'];
+const COLORS = ["#5865F2", "#57F287", "#FEE75C", "#EB459E", "#ED4245", "#FAA61A", "#00B0F4"];
 
-export default function ConfettiBurst() {
-  const [particles, setParticles] = useState<Particle[]>([]);
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    const initial: Particle[] = Array.from({ length: 80 }, (_, i) => ({
+export default function ConfettiBurst({ onDone }: { onDone: () => void }) {
+  const [particles] = useState<Particle[]>(() =>
+    Array.from({ length: 80 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
-      y: -10,
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      size: Math.random() * 10 + 6,
-      speedX: (Math.random() - 0.5) * 2,
-      speedY: Math.random() * 3 + 2,
-      rotation: Math.random() * 360,
-      rotationSpeed: (Math.random() - 0.5) * 10,
-    }));
-    setParticles(initial);
+      size: Math.random() * 8 + 4,
+      duration: Math.random() * 2 + 2,
+      delay: Math.random() * 1,
+    }))
+  );
 
-    const timer = setTimeout(() => setVisible(false), 3000);
+  useEffect(() => {
+    const timer = setTimeout(onDone, 3000);
     return () => clearTimeout(timer);
-  }, []);
-
-  if (!visible) return null;
+  }, [onDone]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
-      {particles.map((p) => (
+    <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
+      {particles.map(p => (
         <div
           key={p.id}
-          className="absolute animate-confetti-fall"
+          className="absolute top-0 rounded-sm"
           style={{
             left: `${p.x}%`,
-            top: `${p.y}%`,
-            width: p.size,
-            height: p.size,
+            width: `${p.size}px`,
+            height: `${p.size * 0.6}px`,
             backgroundColor: p.color,
-            transform: `rotate(${p.rotation}deg)`,
-            borderRadius: Math.random() > 0.5 ? '50%' : '0',
-            animationDuration: `${Math.random() * 1.5 + 1.5}s`,
-            animationDelay: `${Math.random() * 0.5}s`,
+            animation: `confettiFall ${p.duration}s ${p.delay}s ease-in forwards`,
           }}
         />
       ))}

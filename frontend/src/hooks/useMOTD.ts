@@ -1,24 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getMOTD, isMOTDDismissed, dismissMOTDLocally } from '../lib/adminState';
-import { subscribeToBroadcast, unsubscribeFromBroadcast } from '../lib/broadcastControl';
+
+function readMOTD(): string | null {
+  return localStorage.getItem('globalchat_motd');
+}
 
 export function useMOTD() {
-  const [motdMessage, setMotdMessage] = useState<string>(() => getMOTD());
-  const [isDismissed, setIsDismissed] = useState<boolean>(() => isMOTDDismissed());
+  const [motdMessage, setMotdMessage] = useState<string | null>(readMOTD);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    const handler = (event: { eventType: string }) => {
-      if (event.eventType === 'motd') {
-        setMotdMessage(getMOTD());
-        setIsDismissed(isMOTDDismissed());
+    const channel = new BroadcastChannel('globalchat_server_control');
+    channel.onmessage = (event) => {
+      const { type, motd } = event.data || {};
+      if (type === 'set_motd') {
+        setMotdMessage(motd ?? null);
+        setIsDismissed(false);
+      } else if (type === 'clear_motd') {
+        setMotdMessage(null);
+        setIsDismissed(false);
       }
     };
-    subscribeToBroadcast(handler);
-    return () => unsubscribeFromBroadcast(handler);
+    return () => channel.close();
   }, []);
 
   const dismissMOTD = useCallback(() => {
-    dismissMOTDLocally();
     setIsDismissed(true);
   }, []);
 

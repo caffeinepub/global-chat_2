@@ -1,44 +1,45 @@
-import { formatCountdown } from '../lib/serverState';
+import { useState, useEffect } from "react";
 
 interface ShutdownOverlayProps {
+  shutdownUntil: number;
   shutdownMessage: string;
-  remainingMs: number;
 }
 
-export default function ShutdownOverlay({ shutdownMessage, remainingMs }: ShutdownOverlayProps) {
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+export default function ShutdownOverlay({ shutdownUntil, shutdownMessage }: ShutdownOverlayProps) {
+  const [remaining, setRemaining] = useState(() => Math.max(0, shutdownUntil - Date.now()));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRemaining(Math.max(0, shutdownUntil - Date.now()));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [shutdownUntil]);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center select-none">
-      <div className="flex flex-col items-center gap-6 max-w-md px-8 text-center">
-        {/* Pulsing red dot */}
-        <div className="relative">
-          <div className="w-20 h-20 rounded-full bg-red-600/20 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-red-600/40 flex items-center justify-center animate-pulse">
-              <div className="w-6 h-6 rounded-full bg-red-500" />
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95">
+      <div className="text-center space-y-6 px-8 max-w-md">
+        <div className="text-6xl">🔴</div>
+        <h1 className="text-3xl font-bold text-white">Server Shut Down</h1>
+        {shutdownMessage && (
+          <p className="text-gray-300 text-lg">{shutdownMessage}</p>
+        )}
+        {shutdownUntil > 0 && (
+          <div className="space-y-2">
+            <p className="text-gray-400 text-sm uppercase tracking-widest">Estimated return in</p>
+            <div className="text-5xl font-mono font-bold text-red-400">
+              {formatCountdown(remaining)}
             </div>
           </div>
-        </div>
-
-        <div>
-          <h1 className="text-4xl font-bold text-red-400 mb-2">🔴 Server Shut Down</h1>
-          <p className="text-gray-400 text-sm">The server is temporarily offline.</p>
-        </div>
-
-        {shutdownMessage && (
-          <div className="bg-white/5 border border-white/10 rounded-xl px-5 py-3 w-full">
-            <p className="text-gray-300 text-sm italic">"{shutdownMessage}"</p>
-          </div>
         )}
-
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-gray-500 text-xs uppercase tracking-widest">Time remaining</p>
-          <div className="text-5xl font-mono font-bold text-white tabular-nums">
-            {formatCountdown(remainingMs)}
-          </div>
-        </div>
-
-        <p className="text-gray-600 text-xs">
-          The server will automatically come back online when the timer reaches 00:00.
-        </p>
+        <p className="text-gray-500 text-sm">Please wait while the server is being maintained.</p>
       </div>
     </div>
   );
