@@ -1,208 +1,175 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMessage } from '../types/chat';
-import { seedSampleMessagesIfEmpty } from '../utils/sampleMessages';
 import { useActor } from './useActor';
 
 const STORAGE_KEY = 'globalchat_messages';
 const CHANNEL_NAME = 'globalchat_broadcast';
-const MAX_MESSAGES = 500;
 const POLL_INTERVAL_MS = 2000;
 
-function loadMessages(): ChatMessage[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+// Create a stable fingerprint for deduplication that works across devices.
+// We bucket timestamps to 5-second windows to tolerate minor clock skew.
+function msgFingerprint(msg: ChatMessage): string {
+  const tsBucket = Math.floor(msg.timestamp / 5000);
+  return `${msg.username}|${msg.text}|${tsBucket}`;
 }
 
-function saveMessages(messages: ChatMessage[]) {
-  const trimmed = messages.slice(-MAX_MESSAGES);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-}
-
-/** Convert backend ChatMessage (bigint timestamp) to frontend ChatMessage (number timestamp) */
-function fromBackendMessage(msg: {
-  id: string;
-  username: string;
-  text: string;
-  timestamp: bigint;
-  isBot: boolean;
-  isBigMessage: boolean;
-  isForced: boolean;
-  isSystem: boolean;
-  isBroadcast: boolean;
-}): ChatMessage {
+function toBackendMessage(msg: ChatMessage): import('../backend').ChatMessage {
+  const nowMs = msg.timestamp || Date.now();
   return {
     id: msg.id,
     username: msg.username,
     text: msg.text,
-    // Backend stores nanoseconds (ICP Time), convert to milliseconds
+    timestamp: BigInt(nowMs) * 1_000_000n,
+    isBigMessage: msg.isBigMessage ?? false,
+    isForced: msg.isForced ?? false,
+    isBot: msg.isBot ?? false,
+    isSystem: msg.isSystem ?? false,
+    isBroadcast: msg.isBroadcast ?? false,
+  };
+}
+
+function fromBackendMessage(msg: import('../backend').ChatMessage): ChatMessage {
+  return {
+    id: msg.id,
+    username: msg.username,
+    text: msg.text,
     timestamp: Number(msg.timestamp / 1_000_000n),
-    isBot: msg.isBot,
     isBigMessage: msg.isBigMessage,
     isForced: msg.isForced,
+    isBot: msg.isBot,
     isSystem: msg.isSystem,
     isBroadcast: msg.isBroadcast,
   };
 }
 
-export function useBroadcastMessages(username: string) {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => seedSampleMessagesIfEmpty());
-  const channelRef = useRef<BroadcastChannel | null>(null);
-  const { actor } = useActor();
+export function useBroadcastMessages() {
+  // Start with empty state; backend is the authoritative source
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [initialized, setInitialized] = useState(false);
+
+  const { actor, isFetching } = useActor();
   const actorRef = useRef(actor);
   const latestTimestampRef = useRef<bigint>(0n);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  // Track fingerprints for deduplication (works across devices since backend reassigns IDs)
+  const fingerprintsRef = useRef<Set<string>>(new Set());
 
-  // Keep actorRef in sync
+  // Keep actor ref in sync
+  useEffect(() => { actorRef.current = actor; }, [actor]);
+
+  // Persist to localStorage as a cache whenever messages change
   useEffect(() => {
-    actorRef.current = actor;
-  }, [actor]);
+    if (!initialized) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch {}
+  }, [messages, initialized]);
 
-  // Initialize BroadcastChannel
+  // Merge backend messages into state using fingerprint deduplication
+  const mergeBackendMessages = useCallback((backendMsgs: ChatMessage[]) => {
+    if (backendMsgs.length === 0) return;
+    setMessages(prev => {
+      // Rebuild fingerprint set from current state
+      const fps = new Set(prev.map(msgFingerprint));
+      const newMsgs = backendMsgs.filter(m => {
+        const fp = msgFingerprint(m);
+        if (fps.has(fp)) return false;
+        fps.add(fp);
+        return true;
+      });
+      if (newMsgs.length === 0) return prev;
+      const merged = [...prev, ...newMsgs].sort((a, b) => a.timestamp - b.timestamp);
+      // Keep only last 500 messages in memory
+      return merged.slice(-500);
+    });
+    // Update the shared fingerprint ref
+    backendMsgs.forEach(m => fingerprintsRef.current.add(msgFingerprint(m)));
+  }, []);
+
+  // Poll backend for new messages
+  useEffect(() => {
+    if (!actor || isFetching) return;
+
+    const poll = async () => {
+      const currentActor = actorRef.current;
+      if (!currentActor) return;
+      try {
+        const backendMsgs = await currentActor.getMessages(latestTimestampRef.current);
+        if (backendMsgs.length > 0) {
+          const converted = backendMsgs.map(fromBackendMessage);
+          // Update latest timestamp to the max we've seen
+          const maxTs = backendMsgs.reduce(
+            (max, m) => (m.timestamp > max ? m.timestamp : max),
+            latestTimestampRef.current
+          );
+          latestTimestampRef.current = maxTs;
+          mergeBackendMessages(converted);
+        }
+        if (!initialized) setInitialized(true);
+      } catch {
+        // silently ignore poll errors
+      }
+    };
+
+    // Immediate fetch on mount / actor becoming ready
+    poll();
+
+    const intervalId = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(intervalId);
+  }, [actor, isFetching, mergeBackendMessages, initialized]);
+
+  // BroadcastChannel for same-browser tab sync (secondary optimization)
   useEffect(() => {
     const channel = new BroadcastChannel(CHANNEL_NAME);
     channelRef.current = channel;
 
     channel.onmessage = (event) => {
-      const { type, message } = event.data;
-      if (type === 'NEW_MESSAGE' && message) {
-        setMessages(prev => {
-          // Avoid duplicates by id
-          if (prev.find(m => m.id === message.id)) return prev;
-          const updated = [...prev, message];
-          saveMessages(updated);
-          return updated;
-        });
-      }
+      const incoming: ChatMessage = event.data;
+      if (!incoming?.id) return;
+      const fp = msgFingerprint(incoming);
+      if (fingerprintsRef.current.has(fp)) return;
+      fingerprintsRef.current.add(fp);
+      setMessages(prev => {
+        const merged = [...prev, incoming].sort((a, b) => a.timestamp - b.timestamp);
+        return merged.slice(-500);
+      });
     };
-
-    // Sync from localStorage on focus (another tab may have added messages)
-    const handleFocus = () => {
-      const stored = loadMessages();
-      setMessages(stored);
-    };
-    window.addEventListener('focus', handleFocus);
 
     return () => {
       channel.close();
       channelRef.current = null;
-      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
-  // Poll backend for new messages every 2 seconds
-  useEffect(() => {
-    const poll = async () => {
-      const currentActor = actorRef.current;
-      if (!currentActor) return;
+  const sendMessage = useCallback((msg: ChatMessage) => {
+    const fp = msgFingerprint(msg);
 
-      try {
-        const since = latestTimestampRef.current;
-        const backendMessages = await currentActor.getMessages(since);
-
-        if (backendMessages.length === 0) return;
-
-        // Update the latest timestamp tracker
-        const maxTs = backendMessages.reduce((max, m) => {
-          return m.timestamp > max ? m.timestamp : max;
-        }, since);
-        latestTimestampRef.current = maxTs;
-
-        const converted = backendMessages.map(fromBackendMessage);
-
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMsgs = converted.filter(m => !existingIds.has(m.id));
-          if (newMsgs.length === 0) return prev;
-
-          // Sort all messages by timestamp
-          const updated = [...prev, ...newMsgs].sort((a, b) => a.timestamp - b.timestamp);
-          const trimmed = updated.slice(-MAX_MESSAGES);
-          saveMessages(trimmed);
-          return trimmed;
-        });
-      } catch {
-        // Silently fail polling errors
-      }
-    };
-
-    // Start polling
-    pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS);
-
-    // Also poll immediately when actor becomes available
-    poll();
-
-    return () => {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [actor]);
-
-  const sendMessage = useCallback((
-    text: string,
-    overrideUsername?: string,
-    isBot?: boolean,
-    extras?: Partial<Pick<ChatMessage, 'isBigMessage' | 'isForced' | 'isSystem' | 'isBroadcast'>>
-  ) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const nowMs = Date.now();
-
-    const message: ChatMessage = {
-      id,
-      username: overrideUsername ?? username,
-      text,
-      timestamp: nowMs,
-      isBot: isBot ?? false,
-      isBigMessage: extras?.isBigMessage ?? false,
-      isForced: extras?.isForced ?? false,
-      isSystem: extras?.isSystem ?? false,
-      isBroadcast: extras?.isBroadcast ?? false,
-    };
-
-    // Optimistically add to local state
+    // Add to local state immediately for instant feedback
+    fingerprintsRef.current.add(fp);
     setMessages(prev => {
-      if (prev.find(m => m.id === message.id)) return prev;
-      const updated = [...prev, message];
-      saveMessages(updated);
-      return updated;
+      if (fingerprintsRef.current.has(fp) && prev.some(m => msgFingerprint(m) === fp)) {
+        // Already present — skip
+        return prev;
+      }
+      const merged = [...prev, msg].sort((a, b) => a.timestamp - b.timestamp);
+      return merged.slice(-500);
     });
 
     // Broadcast to other tabs in the same browser
-    channelRef.current?.postMessage({ type: 'NEW_MESSAGE', message });
+    channelRef.current?.postMessage(msg);
 
-    // Persist to backend for cross-device sync
+    // Persist to backend for cross-device visibility
     const currentActor = actorRef.current;
     if (currentActor) {
-      // Convert ms timestamp to nanoseconds for ICP backend
-      const timestampNs = BigInt(nowMs) * 1_000_000n;
-
-      currentActor.postMessage({
-        id,
-        username: overrideUsername ?? username,
-        text,
-        timestamp: timestampNs,
-        isBot: isBot ?? false,
-        isBigMessage: extras?.isBigMessage ?? false,
-        isForced: extras?.isForced ?? false,
-        isSystem: extras?.isSystem ?? false,
-        isBroadcast: extras?.isBroadcast ?? false,
-      }).catch(() => {
-        // Silently fail — message is already in local state
-      });
+      currentActor.postMessage(toBackendMessage(msg)).catch(() => {});
     }
-
-    return message;
-  }, [username]);
+  }, []);
 
   const clearMessages = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
     setMessages([]);
+    fingerprintsRef.current.clear();
+    latestTimestampRef.current = 0n;
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   return { messages, sendMessage, clearMessages };

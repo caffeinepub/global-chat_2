@@ -1,200 +1,156 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import TopBar from '../components/TopBar';
 import ChatArea from '../components/ChatArea';
 import MessageInputBar from '../components/MessageInputBar';
-import AIChatButton from '../components/AIChatButton';
-import AIChatPanel from '../components/AIChatPanel';
-import SecretEmojiPicker from '../components/SecretEmojiPicker';
-import ConfirmationToast from '../components/ConfirmationToast';
 import AdminPanel from '../components/AdminPanel';
-import ShutdownOverlay from '../components/ShutdownOverlay';
-import StartupOverlay from '../components/StartupOverlay';
+import ConfettiBurst from '../components/ConfettiBurst';
+import BirthdayOverlay from '../components/BirthdayOverlay';
+import TypingIndicatorBar from '../components/TypingIndicatorBar';
 import { useBroadcastMessages } from '../hooks/useBroadcastMessages';
-import { useEmojiPickerShortcut } from '../hooks/useEmojiPickerShortcut';
-import { useClearChatShortcut } from '../hooks/useClearChatShortcut';
 import { useAIMentionDetector } from '../hooks/useAIMentionDetector';
 import { useChatModeration } from '../hooks/useChatModeration';
-import { useServerState } from '../hooks/useServerState';
-import { isVerifiedOwner } from '../lib/userBadges';
-import { ChatMessage } from '../types/chat';
+import type { ChatMessage } from '../types/chat';
 
-interface ChatPageProps {
+interface Props {
   username: string;
   onLogout: () => void;
 }
 
-export default function ChatPage({ username, onLogout }: ChatPageProps) {
-  const [aiPanelOpen, setAiPanelOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const chatAreaRef = useRef<HTMLDivElement>(null);
+const FAKE_TYPERS = ['Alex', 'Jordan', 'Sam', 'Riley', 'Morgan'];
 
-  const isAdmin = isVerifiedOwner(username);
+export default function ChatPage({ username, onLogout }: Props) {
+  const { messages, sendMessage } = useBroadcastMessages();
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showBirthday, setShowBirthday] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [showTyping, setShowTyping] = useState(false);
+  const confettiKeyRef = useRef(0);
+  const birthdayKeyRef = useRef(0);
 
-  const { messages, sendMessage, clearMessages } = useBroadcastMessages(username);
-  const { showEmojiPicker, setShowEmojiPicker } = useEmojiPickerShortcut();
-  const { showClearToast, confirmClear, dismissClear } = useClearChatShortcut(
-    chatAreaRef,
-    clearMessages
-  );
-
-  // Server state — used to show shutdown/startup overlays for non-owner users
-  const {
-    isShutdown,
-    shutdownMessage,
-    remainingMs,
-    showStartupOverlay,
-  } = useServerState();
-
-  // Non-owner users see overlays; AI.Caffeine never sees them
-  const showShutdownOverlay = !isAdmin && isShutdown && remainingMs > 0;
-  const showStartup = !isAdmin && showStartupOverlay;
+  const isOwner = username === 'AI.Caffeine';
 
   useAIMentionDetector(messages, sendMessage);
   useChatModeration(messages, sendMessage);
 
-  const handleSend = useCallback((text: string) => {
-    if (!text.trim()) return;
-    sendMessage(text.trim());
-  }, [sendMessage]);
-
-  const handleAdminSend = useCallback((
-    text: string,
-    overrideUsername?: string,
-    isBot?: boolean,
-    extras?: Partial<Pick<ChatMessage, 'isBigMessage' | 'isForced'>>
-  ) => {
-    sendMessage(text, overrideUsername, isBot, extras);
-  }, [sendMessage]);
-
-  const handleEmojiSelect = useCallback((emoji: string) => {
-    if (inputRef.current) {
-      const el = inputRef.current;
-      const start = el.selectionStart ?? el.value.length;
-      const end = el.selectionEnd ?? el.value.length;
-      const newVal = el.value.slice(0, start) + emoji + el.value.slice(end);
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLTextAreaElement.prototype,
-        'value'
-      )?.set;
-      nativeInputValueSetter?.call(el, newVal);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      requestAnimationFrame(() => {
-        el.selectionStart = start + emoji.length;
-        el.selectionEnd = start + emoji.length;
-        el.focus();
-      });
-    }
-    setShowEmojiPicker(false);
-  }, [setShowEmojiPicker]);
-
-  // Close sidebar on desktop
+  // BroadcastChannel listener for fun effects
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) setSidebarOpen(false);
+    const ch = new BroadcastChannel('globalchat_server_control');
+    ch.onmessage = (event) => {
+      const { type } = event.data || {};
+      if (type === 'confetti_blast') {
+        confettiKeyRef.current += 1;
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3500);
+      }
+      if (type === 'server_birthday' && !isOwner) {
+        birthdayKeyRef.current += 1;
+        setShowBirthday(true);
+        setTimeout(() => setShowBirthday(false), 5500);
+      }
+      if (type === 'typing_flood') {
+        const shuffled = [...FAKE_TYPERS].sort(() => Math.random() - 0.5).slice(0, 3);
+        setTypingUsers(shuffled);
+        setShowTyping(true);
+      }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    return () => ch.close();
+  }, [isOwner]);
+
+  const handleSend = useCallback(
+    (text: string) => {
+      const msg: ChatMessage = {
+        id: `msg-${Date.now()}-${Math.random()}`,
+        username,
+        text,
+        timestamp: Date.now(),
+        isBigMessage: false,
+        isForced: false,
+        isBot: false,
+        isSystem: false,
+        isBroadcast: false,
+      };
+      sendMessage(msg);
+    },
+    [username, sendMessage]
+  );
+
+  const handleAdminSend = useCallback(
+    (text: string, isBig: boolean) => {
+      const msg: ChatMessage = {
+        id: `admin-${Date.now()}-${Math.random()}`,
+        username: 'AI.Caffeine',
+        text,
+        timestamp: Date.now(),
+        isBigMessage: isBig,
+        isForced: false,
+        isBot: false,
+        isSystem: false,
+        isBroadcast: true,
+      };
+      sendMessage(msg);
+    },
+    [sendMessage]
+  );
+
+  // Derive online users from recent messages
+  const onlineUsers = Array.from(
+    new Set(
+      messages
+        .slice(-50)
+        .map((m) => m.username)
+        .filter((u) => u !== 'G.AI 🤖')
+    )
+  ).slice(0, 20);
+
+  if (!onlineUsers.includes(username)) onlineUsers.unshift(username);
 
   return (
-    <div className="flex h-screen bg-dc-bg overflow-hidden">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-20 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <div className="flex h-screen bg-dc-bg overflow-hidden relative">
+      {/* Fun overlays */}
+      {showConfetti && <ConfettiBurst key={confettiKeyRef.current} />}
+      {showBirthday && <BirthdayOverlay key={birthdayKeyRef.current} />}
 
-      {/* Sidebar */}
-      <div className={`
-        fixed md:relative z-30 md:z-auto h-full
-        transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <Sidebar username={username} onLeave={onLogout} />
-      </div>
+      <Sidebar
+        currentUsername={username}
+        onlineUsers={onlineUsers}
+        onLogout={onLogout}
+      />
 
-      {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar
-          username={username}
-          onMenuClick={() => setSidebarOpen(true)}
+          channelName="general"
+          onlineCount={onlineUsers.length}
           onLogout={onLogout}
-          onAdminPanel={isAdmin ? () => setAdminPanelOpen(true) : undefined}
+          onAdminPanel={isOwner ? () => setAdminOpen(true) : undefined}
         />
 
-        <div
-          ref={chatAreaRef}
-          className="flex-1 overflow-hidden flex flex-col min-h-0"
-          tabIndex={0}
-          style={{ outline: 'none' }}
-        >
-          <ChatArea messages={messages} currentUsername={username} />
-        </div>
+        <ChatArea messages={messages} currentUsername={username} />
+
+        {showTyping && (
+          <TypingIndicatorBar
+            usernames={typingUsers}
+            onDone={() => setShowTyping(false)}
+          />
+        )}
 
         <MessageInputBar
-          ref={inputRef}
           onSend={handleSend}
-          username={username}
+          currentUsername={username}
+          disabled={false}
         />
       </div>
 
-      {/* Secret Emoji Picker */}
-      {showEmojiPicker && (
-        <SecretEmojiPicker
-          onSelect={handleEmojiSelect}
-          onClose={() => setShowEmojiPicker(false)}
-          inputRef={inputRef}
-        />
-      )}
-
-      {/* Clear Chat Toast */}
-      {showClearToast && (
-        <ConfirmationToast
-          message="Clear your chat view? Press C again to confirm"
-          onConfirm={confirmClear}
-          onDismiss={dismissClear}
-        />
-      )}
-
-      {/* AI Chat */}
-      <AIChatButton onClick={() => setAiPanelOpen(true)} isOpen={aiPanelOpen} />
-      {aiPanelOpen && (
-        <AIChatPanel username={username} onClose={() => setAiPanelOpen(false)} />
-      )}
-
-      {/* Admin Panel (only for AI.Caffeine) */}
-      {isAdmin && (
+      {isOwner && (
         <AdminPanel
-          open={adminPanelOpen}
-          onClose={() => setAdminPanelOpen(false)}
-          onSendMessage={handleAdminSend}
+          open={adminOpen}
+          onClose={() => setAdminOpen(false)}
+          currentUsername={username}
+          sendMessage={sendMessage}
+          onAdminSend={handleAdminSend}
         />
       )}
-
-      {/* ── Shutdown Overlay (non-owner users only) ── */}
-      {showShutdownOverlay && (
-        <ShutdownOverlay
-          shutdownMessage={shutdownMessage}
-          remainingMs={remainingMs}
-        />
-      )}
-
-      {/* ── Startup Overlay (non-owner users only, 5 seconds) ── */}
-      <StartupOverlay visible={showStartup} />
-
-      {/* Footer attribution */}
-      <div className="hidden">
-        Built with love using{' '}
-        <a href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname || 'global-chat')}`}>
-          caffeine.ai
-        </a>
-        © {new Date().getFullYear()}
-      </div>
     </div>
   );
 }

@@ -2,6 +2,8 @@ import Time "mo:core/Time";
 import Array "mo:core/Array";
 import Text "mo:core/Text";
 
+
+
 actor {
   type ChatMessage = {
     id : Text;
@@ -24,15 +26,8 @@ actor {
 
   public shared ({ caller }) func postMessage(msg : ChatMessage) : async () {
     let newMsg = {
-      id = nextId.toText();
-      username = msg.username;
-      text = msg.text;
-      timestamp = msg.timestamp;
-      isBigMessage = msg.isBigMessage;
-      isForced = msg.isForced;
-      isBot = msg.isBot;
-      isSystem = msg.isSystem;
-      isBroadcast = msg.isBroadcast;
+      msg with
+      id = (nextId + 1).toText();
     };
 
     var updatedMessages = [newMsg].concat(messages);

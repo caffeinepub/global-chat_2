@@ -1,24 +1,32 @@
 import { useEffect, useRef } from 'react';
 import { ChatMessage } from '../types/chat';
 import { moderateMessage, getOpenAIKey } from '../lib/openai';
-import { useBanManager } from './useBanManager';
 import { addModLogEntry } from '../lib/modLog';
 
 const BOT_USERNAME = 'G.AI 🤖';
+const BAN_KEY = 'globalchat_bans';
+const DEFAULT_BAN_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
-type SendMessageFn = (
-  text: string,
-  overrideUsername?: string,
-  isBot?: boolean,
-  extras?: Partial<Pick<ChatMessage, 'isBigMessage' | 'isForced'>>
-) => ChatMessage;
+function banUser(username: string, reason: string) {
+  try {
+    const raw = localStorage.getItem(BAN_KEY);
+    const bans: Record<string, number> = raw ? JSON.parse(raw) : {};
+    bans[username] = Date.now() + DEFAULT_BAN_DURATION_MS;
+    localStorage.setItem(BAN_KEY, JSON.stringify(bans));
+    // Broadcast so other tabs pick up the ban
+    const ch = new BroadcastChannel('globalchat_server_control');
+    ch.postMessage({ type: 'ban_update', username, reason });
+    ch.close();
+  } catch {
+    // ignore
+  }
+}
 
 export function useChatModeration(
   messages: ChatMessage[],
-  sendMessage: SendMessageFn
+  sendMessage: (msg: ChatMessage) => void
 ) {
   const processedIds = useRef<Set<string>>(new Set());
-  const { banUser } = useBanManager();
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
@@ -53,15 +61,22 @@ export function useChatModeration(
             timestamp: lastMessage.timestamp,
             reason: 'Disrespectful message detected by AI moderation',
           });
-          sendMessage(
-            '⚠️ A user has been removed from the chat for violating our community rules. Please keep the conversation respectful.',
-            BOT_USERNAME,
-            true
-          );
+          const warnMsg: ChatMessage = {
+            id: `mod-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            username: BOT_USERNAME,
+            text: '⚠️ A user has been removed from the chat for violating our community rules. Please keep the conversation respectful.',
+            timestamp: Date.now(),
+            isBot: true,
+            isBigMessage: false,
+            isForced: false,
+            isSystem: false,
+            isBroadcast: false,
+          };
+          sendMessage(warnMsg);
         }
       } catch {
         // Silently fail moderation errors
       }
     })();
-  }, [messages, sendMessage, banUser]);
+  }, [messages, sendMessage]);
 }

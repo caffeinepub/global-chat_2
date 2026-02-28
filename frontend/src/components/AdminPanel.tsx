@@ -1,706 +1,658 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Shield, Ban, Trash2, RefreshCw, Clock, AlertTriangle,
-  VolumeX, Volume2, UserX, UserCheck, Megaphone, Send, Terminal,
-  Power, PowerOff, Lock, Unlock, Pin, PinOff, Palette, Zap,
-  Ghost, Download, Hash, Users, Filter, Bot, Star, Eye, EyeOff,
-  MessageSquare, MoreHorizontal, Settings
-} from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { getActiveBans, useBanManager } from '../hooks/useBanManager';
-import { getActiveMutes, useMuteManager } from '../hooks/useMuteManager';
-import { getModLog, clearModLog, ModLogEntry } from '../lib/modLog';
-import { useServerState } from '../hooks/useServerState';
-import { useAdminCommands } from '../hooks/useAdminCommands';
-import { parseDurationInput } from '../lib/serverState';
-import { ChatMessage } from '../types/chat';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import type { ChatMessage } from '../types/chat';
+import { useFunCommands } from '../hooks/useFunCommands';
+import { getModLog, ModLogEntry } from '../lib/modLog';
 
-interface BanEntry { username: string; expiresAt: number; reason?: string; }
-interface MuteEntry { username: string; expiresAt: number; reason?: string; }
-
-interface AdminPanelProps {
+interface Props {
   open: boolean;
   onClose: () => void;
-  onSendMessage: (
-    text: string,
-    overrideUsername?: string,
-    isBot?: boolean,
-    extras?: Partial<Pick<ChatMessage, 'isBigMessage' | 'isForced'>>
-  ) => void;
+  currentUsername: string;
+  sendMessage: (msg: ChatMessage) => void;
+  onAdminSend: (text: string, isBig: boolean) => void;
 }
 
-function formatTimeRemaining(expiresAt: number): string {
-  const remaining = expiresAt - Date.now();
-  if (remaining <= 0) return 'Expired';
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  return `${minutes}m ${seconds}s`;
-}
-
-function formatTimestamp(ts: number): string {
-  return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-type FeedbackState = { type: 'success' | 'error'; message: string } | null;
-
-function useFeedback() {
-  const [feedback, setFeedback] = useState<FeedbackState>(null);
-  const show = useCallback((type: 'success' | 'error', message: string) => {
-    setFeedback({ type, message });
-    setTimeout(() => setFeedback(null), 3000);
-  }, []);
-  return { feedback, show };
-}
-
-function FeedbackBadge({ fb }: { fb: FeedbackState }) {
-  if (!fb) return null;
+function StatusMsg({ msg }: { msg: { text: string; ok: boolean } | null }) {
+  if (!msg) return null;
   return (
-    <p className={`text-xs mt-1.5 px-2 py-1 rounded-lg ${
-      fb.type === 'success'
-        ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-        : 'bg-red-500/10 text-red-400 border border-red-500/20'
-    }`}>
-      {fb.type === 'success' ? '✓ ' : '✗ '}{fb.message}
-    </p>
+    <p className={`text-xs mt-1 ${msg.ok ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>
   );
 }
 
-function CommandCard({ icon, title, description, children }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-dc-bg/50 rounded-xl p-3 border border-white/5">
-      <div className="flex items-center gap-2 mb-1.5">
-        {icon}
-        <span className="text-sm font-semibold text-white">{title}</span>
-      </div>
-      <p className="text-xs text-dc-muted mb-2">{description}</p>
-      {children}
-    </div>
-  );
-}
+type Status = { text: string; ok: boolean } | null;
 
-export default function AdminPanel({ open, onClose, onSendMessage }: AdminPanelProps) {
-  const [bans, setBans] = useState<BanEntry[]>([]);
-  const [mutes, setMutes] = useState<MuteEntry[]>([]);
-  const [modLog, setModLog] = useState<ModLogEntry[]>([]);
-  const [tick, setTick] = useState(0);
+export default function AdminPanel({ open, onClose, currentUsername, sendMessage, onAdminSend }: Props) {
+  const cmds = useFunCommands(sendMessage, currentUsername);
 
-  // Original command inputs
-  const [banTarget, setBanTarget] = useState('');
-  const [unbanTarget, setUnbanTarget] = useState('');
-  const [muteTarget, setMuteTarget] = useState('');
-  const [unmuteTarget, setUnmuteTarget] = useState('');
-  const [bigMessage, setBigMessage] = useState('');
+  // Big message
+  const [bigText, setBigText] = useState('');
+  const [bigStatus, setBigStatus] = useState<Status>(null);
+
+  // Force text
   const [forceTarget, setForceTarget] = useState('');
   const [forceText, setForceText] = useState('');
+  const [forceStatus, setForceStatus] = useState<Status>(null);
 
-  // Server control inputs
-  const [shutdownDuration, setShutdownDuration] = useState('10:00');
-  const [shutdownMsg, setShutdownMsg] = useState('');
+  // Ghost mode
+  const [ghostUser, setGhostUser] = useState('');
+  const [ghostDur, setGhostDur] = useState('5');
+  const [ghostStatus, setGhostStatus] = useState<Status>(null);
 
-  // More commands inputs
-  const [renameOld, setRenameOld] = useState('');
-  const [renameNew, setRenameNew] = useState('');
-  const [pinMsgId, setPinMsgId] = useState('');
-  const [announceUser, setAnnounceUser] = useState('');
-  const [announceRole, setAnnounceRole] = useState('');
-  const [themeChoice, setThemeChoice] = useState('dark');
-  const [slowModeSecs, setSlowModeSecs] = useState('5');
-  const [massMuteMins, setMassMuteMins] = useState('5');
-  const [fakeJoinUser, setFakeJoinUser] = useState('');
-  const [fakeLeaveUser, setFakeLeaveUser] = useState('');
-  const [motdText, setMotdText] = useState('');
-  const [highlightUser, setHighlightUser] = useState('');
-  const [highlightColor, setHighlightColor] = useState('#f59e0b');
-  const [highlightDuration, setHighlightDuration] = useState('60');
-  const [shadowbanUser, setShadowbanUser] = useState('');
-  const [unshadowbanUser, setUnshadowbanUser] = useState('');
-  const [channelName, setChannelName] = useState('');
-  const [userLimit, setUserLimit] = useState('');
-  const [botMessage, setBotMessage] = useState('');
-  const [massBanMins, setMassBanMins] = useState('10');
+  // VIP
+  const [vipUser, setVipUser] = useState('');
+  const [vipStatus, setVipStatus] = useState<Status>(null);
+  const [removeVipUser, setRemoveVipUser] = useState('');
+  const [removeVipStatus, setRemoveVipStatus] = useState<Status>(null);
 
-  const { banUser, unbanUser } = useBanManager();
-  const { muteUser, unmuteUser } = useMuteManager();
-  const { isShutdown, remainingMs, shutdown, startup } = useServerState();
+  // Freeze
+  const [freezeUserInput, setFreezeUserInput] = useState('');
+  const [freezeDur, setFreezeDur] = useState('5');
+  const [freezeStatus, setFreezeStatus] = useState<Status>(null);
+  const [unfreezeUserInput, setUnfreezeUserInput] = useState('');
+  const [unfreezeStatus, setUnfreezeStatus] = useState<Status>(null);
 
-  const adminCmds = useAdminCommands(onSendMessage as (text: string, overrideUsername?: string, isBot?: boolean, extras?: Record<string, unknown>) => void);
+  // Balloon
+  const [balloonText, setBalloonText] = useState('');
+  const [balloonStatus, setBalloonStatus] = useState<Status>(null);
 
-  // Feedback hooks
-  const banFb = useFeedback();
-  const unbanFb = useFeedback();
-  const muteFb = useFeedback();
-  const unmuteFb = useFeedback();
-  const bigMsgFb = useFeedback();
-  const forceFb = useFeedback();
-  const shutdownFb = useFeedback();
-  const startupFb = useFeedback();
-  const cmd1Fb = useFeedback();
-  const cmd2Fb = useFeedback();
-  const cmd3Fb = useFeedback();
-  const cmd4Fb = useFeedback();
-  const cmd5Fb = useFeedback();
-  const cmd6Fb = useFeedback();
-  const cmd7Fb = useFeedback();
-  const cmd8Fb = useFeedback();
-  const cmd9Fb = useFeedback();
-  const cmd10Fb = useFeedback();
-  const cmd11Fb = useFeedback();
-  const cmd12Fb = useFeedback();
-  const cmd13Fb = useFeedback();
-  const cmd14Fb = useFeedback();
-  const cmd15Fb = useFeedback();
-  const cmd16Fb = useFeedback();
-  const cmd17Fb = useFeedback();
-  const cmd18Fb = useFeedback();
-  const cmd19Fb = useFeedback();
-  const cmd20Fb = useFeedback();
-  const cmd21Fb = useFeedback();
-  const cmd22Fb = useFeedback();
-  const cmd23Fb = useFeedback();
-  const cmd24Fb = useFeedback();
-  const cmd25Fb = useFeedback();
+  // Weather
+  const [weatherPreset, setWeatherPreset] = useState('sunny');
+  const [weatherStatus, setWeatherStatus] = useState<Status>(null);
 
-  const refresh = useCallback(() => {
-    setBans(getActiveBans());
-    setMutes(getActiveMutes());
-    setModLog(getModLog());
-  }, []);
+  // Avatar color
+  const [avatarUser, setAvatarUser] = useState('');
+  const [avatarColor, setAvatarColor] = useState('#ff6b6b');
+  const [avatarStatus, setAvatarStatus] = useState<Status>(null);
+  const [resetAvatarUser, setResetAvatarUser] = useState('');
+  const [resetAvatarStatus, setResetAvatarStatus] = useState<Status>(null);
 
-  useEffect(() => { if (open) refresh(); }, [open, refresh]);
+  // Spotlight
+  const [spotlightUserInput, setSpotlightUserInput] = useState('');
+  const [spotlightStatus, setSpotlightStatus] = useState<Status>(null);
+
+  // Nickname
+  const [nickUser, setNickUser] = useState('');
+  const [nickName, setNickName] = useState('');
+  const [nickStatus, setNickStatus] = useState<Status>(null);
+  const [removeNickUser, setRemoveNickUser] = useState('');
+  const [removeNickStatus, setRemoveNickStatus] = useState<Status>(null);
+
+  // Trivia
+  const [triviaQ, setTriviaQ] = useState('');
+  const [triviaOpts, setTriviaOpts] = useState(['', '', '', '']);
+  const [triviaStatus, setTriviaStatus] = useState<Status>(null);
+
+  // Word of the day
+  const [wotdWord, setWotdWord] = useState('');
+  const [wotdDef, setWotdDef] = useState('');
+  const [wotdStatus, setWotdStatus] = useState<Status>(null);
+
+  // Message count
+  const [msgCount, setMsgCount] = useState<number | null>(null);
+
+  // Mod log
+  const [modLog, setModLog] = useState<ModLogEntry[]>([]);
+  const [logStatus, setLogStatus] = useState<Status>(null);
+
+  // Generic status for instant commands
+  const [instantStatus, setInstantStatus] = useState<Record<string, Status>>({});
 
   useEffect(() => {
-    if (!open) return;
-    const interval = setInterval(() => setTick(t => t + 1), 1000);
-    return () => clearInterval(interval);
+    if (open) setModLog(getModLog());
   }, [open]);
 
-  void tick;
-
-  // Original handlers
-  const handleBan = () => {
-    const t = banTarget.trim();
-    if (!t) { banFb.show('error', 'Enter a username to ban.'); return; }
-    if (t === 'AI.Caffeine') { banFb.show('error', 'Cannot ban the owner.'); return; }
-    banUser(t, 'Banned by admin');
-    banFb.show('success', `${t} has been banned for 10 minutes.`);
-    setBanTarget(''); refresh();
+  const setInstant = (key: string, text: string, ok: boolean) => {
+    setInstantStatus((prev) => ({ ...prev, [key]: { text, ok } }));
+    setTimeout(() => setInstantStatus((prev) => ({ ...prev, [key]: null })), 3000);
   };
 
-  const handleUnban = (username: string) => { unbanUser(username); refresh(); };
-
-  const handleUnbanInput = () => {
-    const t = unbanTarget.trim();
-    if (!t) { unbanFb.show('error', 'Enter a username to unban.'); return; }
-    unbanUser(t);
-    unbanFb.show('success', `${t} has been unbanned.`);
-    setUnbanTarget(''); refresh();
-  };
-
-  const handleMute = () => {
-    const t = muteTarget.trim();
-    if (!t) { muteFb.show('error', 'Enter a username to mute.'); return; }
-    if (t === 'AI.Caffeine') { muteFb.show('error', 'Cannot mute the owner.'); return; }
-    muteUser(t, 10 * 60 * 1000, 'Muted by admin');
-    muteFb.show('success', `${t} has been muted for 10 minutes.`);
-    setMuteTarget(''); refresh();
-  };
-
-  const handleUnmute = () => {
-    const t = unmuteTarget.trim();
-    if (!t) { unmuteFb.show('error', 'Enter a username to unmute.'); return; }
-    unmuteUser(t);
-    unmuteFb.show('success', `${t} has been unmuted.`);
-    setUnmuteTarget(''); refresh();
-  };
-
-  const handleBigMessage = () => {
-    const text = bigMessage.trim();
-    if (!text) { bigMsgFb.show('error', 'Enter a message to broadcast.'); return; }
-    onSendMessage(text, 'AI.Caffeine', false, { isBigMessage: true });
-    bigMsgFb.show('success', 'Server announcement broadcast!');
-    setBigMessage('');
-  };
-
-  const handleForceText = () => {
-    const target = forceTarget.trim();
-    const text = forceText.trim();
-    if (!target) { forceFb.show('error', 'Enter a target username.'); return; }
-    if (!text) { forceFb.show('error', 'Enter a message to force send.'); return; }
-    onSendMessage(text, target, false, { isForced: true });
-    forceFb.show('success', `Message force-sent as ${target}.`);
-    setForceTarget(''); setForceText('');
-  };
-
-  const handleShutdown = () => {
-    const durationMs = parseDurationInput(shutdownDuration);
-    if (durationMs === null) { shutdownFb.show('error', 'Invalid format. Use mm:ss (e.g. 10:00).'); return; }
-    if (durationMs <= 0) { shutdownFb.show('error', 'Duration must be greater than 0.'); return; }
-    if (durationMs > 50 * 60 * 1000) { shutdownFb.show('error', 'Maximum shutdown duration is 50 minutes.'); return; }
-    shutdown(durationMs, shutdownMsg.trim(), 'AI.Caffeine');
-    shutdownFb.show('success', `Server shut down for ${shutdownDuration}.`);
-  };
-
-  const handleStartup = () => {
-    startup();
-    startupFb.show('success', 'Server started up successfully!');
-  };
-
-  const handleClearLog = () => { clearModLog(); setModLog([]); };
-
-  const runCmd = (fb: ReturnType<typeof useFeedback>, fn: () => string) => {
-    const result = fn();
-    fb.show(result.startsWith('✓') ? 'success' : 'error', result.replace(/^[✓✗] /, ''));
-  };
-
-  const formatRemainingShutdown = () => {
-    if (!isShutdown) return '';
-    const totalSecs = Math.ceil(remainingMs / 1000);
-    const m = Math.floor(totalSecs / 60);
-    const s = totalSecs % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const handleInstant = (key: string, fn: () => void) => {
+    fn();
+    setInstant(key, '✅ Done!', true);
   };
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[560px] bg-dc-sidebar border-l border-white/10 text-white p-0 flex flex-col"
+        className="w-full sm:max-w-lg bg-dc-sidebar border-l border-white/10 text-white p-0 flex flex-col"
       >
-        <SheetHeader className="px-5 pt-5 pb-4 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-yellow-400" />
-            </div>
-            <div>
-              <SheetTitle className="text-white text-base font-bold">Admin Panel</SheetTitle>
-              <SheetDescription className="text-dc-muted text-xs">
-                Moderation controls for AI.Caffeine
-              </SheetDescription>
-            </div>
-            {isShutdown && (
-              <div className="ml-auto flex items-center gap-1.5 bg-red-500/20 border border-red-500/30 rounded-lg px-2 py-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                <span className="text-red-400 text-xs font-mono font-bold">{formatRemainingShutdown()}</span>
-              </div>
-            )}
-          </div>
+        <SheetHeader className="px-6 pt-6 pb-2">
+          <SheetTitle className="text-yellow-400 text-xl font-bold flex items-center gap-2">
+            👑 Admin Panel
+          </SheetTitle>
+          <SheetDescription className="text-dc-muted text-sm">
+            AI.Caffeine exclusive controls
+          </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col px-4 py-3">
-          <Tabs defaultValue="commands" className="flex flex-col flex-1 overflow-hidden">
-            <TabsList className="bg-dc-bg/60 border border-white/10 mb-4 shrink-0 grid grid-cols-4">
-              <TabsTrigger value="commands" className="text-xs data-[state=active]:bg-dc-accent data-[state=active]:text-white">
-                <Terminal className="w-3 h-3 mr-1" />
-                Commands
-              </TabsTrigger>
-              <TabsTrigger value="server" className="text-xs data-[state=active]:bg-dc-accent data-[state=active]:text-white">
-                <Settings className="w-3 h-3 mr-1" />
-                Server
-              </TabsTrigger>
-              <TabsTrigger value="more" className="text-xs data-[state=active]:bg-dc-accent data-[state=active]:text-white">
-                <MoreHorizontal className="w-3 h-3 mr-1" />
-                More
-              </TabsTrigger>
-              <TabsTrigger value="bans" className="text-xs data-[state=active]:bg-dc-accent data-[state=active]:text-white">
-                <Ban className="w-3 h-3 mr-1" />
-                Bans
-              </TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="fun" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="mx-6 mb-2 bg-dc-bg/50 shrink-0">
+            <TabsTrigger value="fun" className="flex-1 text-xs">🎮 Fun Commands</TabsTrigger>
+            <TabsTrigger value="broadcast" className="flex-1 text-xs">📢 Broadcast</TabsTrigger>
+            <TabsTrigger value="log" className="flex-1 text-xs">📋 Log</TabsTrigger>
+          </TabsList>
 
-            {/* ── Commands Tab ── */}
-            <TabsContent value="commands" className="flex-1 overflow-y-auto mt-0 space-y-3">
-              <CommandCard icon={<UserX className="w-4 h-4 text-red-400" />} title="Ban User" description="Prevents a user from sending messages for 10 minutes.">
-                <div className="flex gap-2">
-                  <Input value={banTarget} onChange={e => setBanTarget(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBan()} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={handleBan} className="h-8 px-3 text-xs bg-red-500/80 hover:bg-red-500 text-white border-0"><Ban className="w-3.5 h-3.5 mr-1" />Ban</Button>
-                </div>
-                <FeedbackBadge fb={banFb.feedback} />
-              </CommandCard>
+          {/* FUN COMMANDS TAB */}
+          <TabsContent value="fun" className="flex-1 overflow-hidden m-0">
+            <ScrollArea className="h-full px-6 pb-6">
+              <div className="space-y-4 pt-2">
 
-              <CommandCard icon={<UserCheck className="w-4 h-4 text-green-400" />} title="Unban User" description="Removes an active ban immediately.">
-                <div className="flex gap-2">
-                  <Input value={unbanTarget} onChange={e => setUnbanTarget(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUnbanInput()} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={handleUnbanInput} className="h-8 px-3 text-xs bg-green-500/80 hover:bg-green-500 text-white border-0"><UserCheck className="w-3.5 h-3.5 mr-1" />Unban</Button>
-                </div>
-                <FeedbackBadge fb={unbanFb.feedback} />
-              </CommandCard>
-
-              <CommandCard icon={<VolumeX className="w-4 h-4 text-orange-400" />} title="Mute User" description="Silences a user for 10 minutes.">
-                <div className="flex gap-2">
-                  <Input value={muteTarget} onChange={e => setMuteTarget(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleMute()} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={handleMute} className="h-8 px-3 text-xs bg-orange-500/80 hover:bg-orange-500 text-white border-0"><VolumeX className="w-3.5 h-3.5 mr-1" />Mute</Button>
-                </div>
-                <FeedbackBadge fb={muteFb.feedback} />
-              </CommandCard>
-
-              <CommandCard icon={<Volume2 className="w-4 h-4 text-teal-400" />} title="Unmute User" description="Removes an active mute immediately.">
-                <div className="flex gap-2">
-                  <Input value={unmuteTarget} onChange={e => setUnmuteTarget(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleUnmute()} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={handleUnmute} className="h-8 px-3 text-xs bg-teal-500/80 hover:bg-teal-500 text-white border-0"><Volume2 className="w-3.5 h-3.5 mr-1" />Unmute</Button>
-                </div>
-                <FeedbackBadge fb={unmuteFb.feedback} />
-              </CommandCard>
-
-              <CommandCard icon={<Megaphone className="w-4 h-4 text-yellow-400" />} title="Big Message" description="Broadcasts a server-wide announcement banner.">
-                <div className="flex gap-2">
-                  <Input value={bigMessage} onChange={e => setBigMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBigMessage()} placeholder="Announcement text..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={handleBigMessage} className="h-8 px-3 text-xs bg-yellow-500/80 hover:bg-yellow-500 text-white border-0"><Megaphone className="w-3.5 h-3.5 mr-1" />Send</Button>
-                </div>
-                <FeedbackBadge fb={bigMsgFb.feedback} />
-              </CommandCard>
-
-              <CommandCard icon={<Send className="w-4 h-4 text-purple-400" />} title="Force Text" description="Force-sends a message as any user.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={forceTarget} onChange={e => setForceTarget(e.target.value)} placeholder="Target username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                </div>
-                <div className="flex gap-2">
-                  <Input value={forceText} onChange={e => setForceText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleForceText()} placeholder="Message to force send..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={handleForceText} className="h-8 px-3 text-xs bg-purple-500/80 hover:bg-purple-500 text-white border-0"><Send className="w-3.5 h-3.5 mr-1" />Force</Button>
-                </div>
-                <FeedbackBadge fb={forceFb.feedback} />
-              </CommandCard>
-            </TabsContent>
-
-            {/* ── Server Control Tab ── */}
-            <TabsContent value="server" className="flex-1 overflow-y-auto mt-0 space-y-3">
-              {/* Shutdown */}
-              <CommandCard
-                icon={<PowerOff className="w-4 h-4 text-red-400" />}
-                title="Shutdown Server"
-                description="Shuts down the server for a specified duration (max 50 minutes). Non-owners see a black screen with countdown."
-              >
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-xs text-dc-muted mb-1 block">Duration (mm:ss, max 50:00)</label>
-                    <Input
-                      value={shutdownDuration}
-                      onChange={e => setShutdownDuration(e.target.value)}
-                      placeholder="10:00"
-                      className="h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-dc-muted mb-1 block">Shutdown message (optional)</label>
-                    <Input
-                      value={shutdownMsg}
-                      onChange={e => setShutdownMsg(e.target.value)}
-                      placeholder="Reason for shutdown..."
-                      className="h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleShutdown}
-                    disabled={isShutdown}
-                    className="w-full h-8 text-xs bg-red-600/80 hover:bg-red-600 text-white border-0 gap-1.5"
-                  >
-                    <PowerOff className="w-3.5 h-3.5" />
-                    {isShutdown ? `Server is shut down (${formatRemainingShutdown()})` : 'Shutdown Server'}
-                  </Button>
-                </div>
-                <FeedbackBadge fb={shutdownFb.feedback} />
-              </CommandCard>
-
-              {/* Startup */}
-              {isShutdown && (
-                <CommandCard
-                  icon={<Power className="w-4 h-4 text-green-400" />}
-                  title="Start Up Server"
-                  description="Brings the server back online immediately. All users will see a green startup screen for 5 seconds."
-                >
-                  <Button
-                    onClick={handleStartup}
-                    className="w-full h-8 text-xs bg-green-600/80 hover:bg-green-600 text-white border-0 gap-1.5"
-                  >
-                    <Power className="w-3.5 h-3.5" />
-                    Start Up Server Now
-                  </Button>
-                  <FeedbackBadge fb={startupFb.feedback} />
-                </CommandCard>
-              )}
-
-              {/* Lock / Unlock */}
-              <CommandCard icon={<Lock className="w-4 h-4 text-yellow-400" />} title="Lock / Unlock Chat" description="Prevents all non-admin users from sending messages.">
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => runCmd(cmd9Fb, adminCmds.lockChat)} className="flex-1 h-8 text-xs bg-yellow-500/80 hover:bg-yellow-500 text-white border-0 gap-1"><Lock className="w-3 h-3" />Lock</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd10Fb, adminCmds.unlockChat)} className="flex-1 h-8 text-xs bg-green-500/80 hover:bg-green-500 text-white border-0 gap-1"><Unlock className="w-3 h-3" />Unlock</Button>
-                </div>
-                <FeedbackBadge fb={cmd9Fb.feedback} />
-                <FeedbackBadge fb={cmd10Fb.feedback} />
-              </CommandCard>
-
-              {/* Slow Mode */}
-              <CommandCard icon={<Clock className="w-4 h-4 text-blue-400" />} title="Slow Mode" description="Sets a cooldown between messages for all non-admin users.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={slowModeSecs} onChange={e => setSlowModeSecs(e.target.value)} placeholder="Seconds..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd7Fb, () => adminCmds.enableSlowMode(parseInt(slowModeSecs) || 5))} className="h-8 px-3 text-xs bg-blue-500/80 hover:bg-blue-500 text-white border-0">Enable</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd8Fb, adminCmds.disableSlowMode)} className="h-8 px-3 text-xs bg-gray-500/80 hover:bg-gray-500 text-white border-0">Disable</Button>
-                </div>
-                <FeedbackBadge fb={cmd7Fb.feedback} />
-                <FeedbackBadge fb={cmd8Fb.feedback} />
-              </CommandCard>
-
-              {/* Mass Mute / Unmute */}
-              <CommandCard icon={<VolumeX className="w-4 h-4 text-orange-400" />} title="Mass Mute / Unmute" description="Mutes or unmutes all users at once.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={massMuteMins} onChange={e => setMassMuteMins(e.target.value)} placeholder="Minutes..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd11Fb, () => adminCmds.massMute(parseInt(massMuteMins) || 5))} className="h-8 px-3 text-xs bg-orange-500/80 hover:bg-orange-500 text-white border-0">Mass Mute</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd12Fb, adminCmds.massUnmute)} className="h-8 px-3 text-xs bg-teal-500/80 hover:bg-teal-500 text-white border-0">Unmute All</Button>
-                </div>
-                <FeedbackBadge fb={cmd11Fb.feedback} />
-                <FeedbackBadge fb={cmd12Fb.feedback} />
-              </CommandCard>
-
-              {/* Mass Ban / Unban */}
-              <CommandCard icon={<Ban className="w-4 h-4 text-red-400" />} title="Mass Ban / Unban" description="Bans or unbans all users at once.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={massBanMins} onChange={e => setMassBanMins(e.target.value)} placeholder="Minutes..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd24Fb, () => adminCmds.massBan(parseInt(massBanMins) || 10))} className="h-8 px-3 text-xs bg-red-500/80 hover:bg-red-500 text-white border-0">Mass Ban</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd25Fb, adminCmds.massUnban)} className="h-8 px-3 text-xs bg-green-500/80 hover:bg-green-500 text-white border-0">Unban All</Button>
-                </div>
-                <FeedbackBadge fb={cmd24Fb.feedback} />
-                <FeedbackBadge fb={cmd25Fb.feedback} />
-              </CommandCard>
-
-              {/* Clear All Chat */}
-              <CommandCard icon={<Trash2 className="w-4 h-4 text-red-400" />} title="Clear All Chat" description="Permanently deletes all messages from the chat.">
-                <Button onClick={() => runCmd(cmd2Fb, adminCmds.clearAllChat)} className="w-full h-8 text-xs bg-red-500/80 hover:bg-red-500 text-white border-0 gap-1.5">
-                  <Trash2 className="w-3.5 h-3.5" />Clear All Messages
-                </Button>
-                <FeedbackBadge fb={cmd2Fb.feedback} />
-              </CommandCard>
-            </TabsContent>
-
-            {/* ── More Commands Tab ── */}
-            <TabsContent value="more" className="flex-1 overflow-y-auto mt-0 space-y-3">
-              {/* 1. Rename User */}
-              <CommandCard icon={<Users className="w-4 h-4 text-cyan-400" />} title="Rename User" description="Changes a user's display name in the user list.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={renameOld} onChange={e => setRenameOld(e.target.value)} placeholder="Current name..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Input value={renameNew} onChange={e => setRenameNew(e.target.value)} placeholder="New name..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                </div>
-                <Button size="sm" onClick={() => runCmd(cmd1Fb, () => adminCmds.renameUser(renameOld, renameNew))} className="w-full h-8 text-xs bg-cyan-500/80 hover:bg-cyan-500 text-white border-0">Rename</Button>
-                <FeedbackBadge fb={cmd1Fb.feedback} />
-              </CommandCard>
-
-              {/* 3. Pin Message */}
-              <CommandCard icon={<Pin className="w-4 h-4 text-dc-accent" />} title="Pin Message" description="Pins a message by its ID at the top of the chat.">
-                <div className="flex gap-2">
-                  <Input value={pinMsgId} onChange={e => setPinMsgId(e.target.value)} placeholder="Message ID..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted font-mono" />
-                  <Button size="sm" onClick={() => runCmd(cmd3Fb, () => adminCmds.pinMessage(pinMsgId))} className="h-8 px-3 text-xs bg-dc-accent/80 hover:bg-dc-accent text-white border-0">Pin</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd4Fb, adminCmds.unpinMessage)} className="h-8 px-3 text-xs bg-gray-500/80 hover:bg-gray-500 text-white border-0"><PinOff className="w-3 h-3" /></Button>
-                </div>
-                <FeedbackBadge fb={cmd3Fb.feedback} />
-                <FeedbackBadge fb={cmd4Fb.feedback} />
-              </CommandCard>
-
-              {/* 5. Announce Role */}
-              <CommandCard icon={<Star className="w-4 h-4 text-yellow-400" />} title="Announce Role" description="Announces a role assignment for a user in chat.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={announceUser} onChange={e => setAnnounceUser(e.target.value)} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Input value={announceRole} onChange={e => setAnnounceRole(e.target.value)} placeholder="Role title..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                </div>
-                <Button size="sm" onClick={() => runCmd(cmd5Fb, () => adminCmds.announceRole(announceUser, announceRole))} className="w-full h-8 text-xs bg-yellow-500/80 hover:bg-yellow-500 text-white border-0">Announce</Button>
-                <FeedbackBadge fb={cmd5Fb.feedback} />
-              </CommandCard>
-
-              {/* 6. Change Theme */}
-              <CommandCard icon={<Palette className="w-4 h-4 text-pink-400" />} title="Change Theme" description="Changes the chat theme for all users.">
-                <div className="flex gap-2">
-                  <select
-                    value={themeChoice}
-                    onChange={e => setThemeChoice(e.target.value)}
-                    className="flex-1 h-8 text-xs bg-dc-input border border-white/10 text-white rounded-md px-2"
-                  >
-                    <option value="dark">Dark (Default)</option>
-                    <option value="light">Light</option>
-                    <option value="red">Red</option>
-                    <option value="blue">Blue</option>
-                    <option value="green">Green</option>
-                    <option value="purple">Purple</option>
-                  </select>
-                  <Button size="sm" onClick={() => runCmd(cmd6Fb, () => adminCmds.changeTheme(themeChoice))} className="h-8 px-3 text-xs bg-pink-500/80 hover:bg-pink-500 text-white border-0">Apply</Button>
-                </div>
-                <FeedbackBadge fb={cmd6Fb.feedback} />
-              </CommandCard>
-
-              {/* 13. Fake Join / Leave */}
-              <CommandCard icon={<Zap className="w-4 h-4 text-yellow-400" />} title="Fake Join / Leave" description="Sends a fake join or leave notification in chat.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={fakeJoinUser} onChange={e => setFakeJoinUser(e.target.value)} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd13Fb, () => adminCmds.fakeJoin(fakeJoinUser))} className="h-8 px-3 text-xs bg-green-500/80 hover:bg-green-500 text-white border-0">Join</Button>
-                </div>
-                <div className="flex gap-2">
-                  <Input value={fakeLeaveUser} onChange={e => setFakeLeaveUser(e.target.value)} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd14Fb, () => adminCmds.fakeLeave(fakeLeaveUser))} className="h-8 px-3 text-xs bg-red-500/80 hover:bg-red-500 text-white border-0">Leave</Button>
-                </div>
-                <FeedbackBadge fb={cmd13Fb.feedback} />
-                <FeedbackBadge fb={cmd14Fb.feedback} />
-              </CommandCard>
-
-              {/* 15. MOTD */}
-              <CommandCard icon={<MessageSquare className="w-4 h-4 text-blue-400" />} title="Message of the Day" description="Sets a banner message shown at the top of chat for all users.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={motdText} onChange={e => setMotdText(e.target.value)} placeholder="MOTD text..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd15Fb, () => adminCmds.setMOTDCommand(motdText))} className="h-8 px-3 text-xs bg-blue-500/80 hover:bg-blue-500 text-white border-0">Set</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd16Fb, adminCmds.clearMOTDCommand)} className="h-8 px-3 text-xs bg-gray-500/80 hover:bg-gray-500 text-white border-0">Clear</Button>
-                </div>
-                <FeedbackBadge fb={cmd15Fb.feedback} />
-                <FeedbackBadge fb={cmd16Fb.feedback} />
-              </CommandCard>
-
-              {/* 17. Highlight User */}
-              <CommandCard icon={<Star className="w-4 h-4 text-amber-400" />} title="Highlight User" description="Adds a glowing colored border to a user's messages for a duration.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={highlightUser} onChange={e => setHighlightUser(e.target.value)} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <input type="color" value={highlightColor} onChange={e => setHighlightColor(e.target.value)} className="h-8 w-10 rounded border border-white/10 bg-dc-input cursor-pointer" />
-                  <Input value={highlightDuration} onChange={e => setHighlightDuration(e.target.value)} placeholder="Secs..." className="w-16 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                </div>
-                <Button size="sm" onClick={() => runCmd(cmd17Fb, () => adminCmds.highlightUser(highlightUser, highlightColor, parseInt(highlightDuration) || 60))} className="w-full h-8 text-xs bg-amber-500/80 hover:bg-amber-500 text-white border-0">Highlight</Button>
-                <FeedbackBadge fb={cmd17Fb.feedback} />
-              </CommandCard>
-
-              {/* 18. Shadowban */}
-              <CommandCard icon={<Ghost className="w-4 h-4 text-gray-400" />} title="Shadowban / Unshadowban" description="Shadowbanned users see their messages locally but they aren't broadcast to others.">
-                <div className="flex gap-2 mb-2">
-                  <Input value={shadowbanUser} onChange={e => setShadowbanUser(e.target.value)} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd18Fb, () => adminCmds.shadowban(shadowbanUser))} className="h-8 px-3 text-xs bg-gray-500/80 hover:bg-gray-500 text-white border-0"><Eye className="w-3 h-3 mr-1" />Shadow</Button>
-                </div>
-                <div className="flex gap-2">
-                  <Input value={unshadowbanUser} onChange={e => setUnshadowbanUser(e.target.value)} placeholder="Username..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd19Fb, () => adminCmds.unshadowban(unshadowbanUser))} className="h-8 px-3 text-xs bg-teal-500/80 hover:bg-teal-500 text-white border-0"><EyeOff className="w-3 h-3 mr-1" />Unshadow</Button>
-                </div>
-                <FeedbackBadge fb={cmd18Fb.feedback} />
-                <FeedbackBadge fb={cmd19Fb.feedback} />
-              </CommandCard>
-
-              {/* 20. Rename Channel */}
-              <CommandCard icon={<Hash className="w-4 h-4 text-dc-accent" />} title="Rename Channel" description="Changes the channel name displayed in the header.">
-                <div className="flex gap-2">
-                  <Input value={channelName} onChange={e => setChannelName(e.target.value)} placeholder="New channel name..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd20Fb, () => adminCmds.renameChannel(channelName))} className="h-8 px-3 text-xs bg-dc-accent/80 hover:bg-dc-accent text-white border-0">Rename</Button>
-                </div>
-                <FeedbackBadge fb={cmd20Fb.feedback} />
-              </CommandCard>
-
-              {/* 21. Set User Limit */}
-              <CommandCard icon={<Users className="w-4 h-4 text-purple-400" />} title="Set User Limit" description="Sets the maximum number of users allowed in the chat.">
-                <div className="flex gap-2">
-                  <Input value={userLimit} onChange={e => setUserLimit(e.target.value)} placeholder="Max users..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd21Fb, () => adminCmds.setUserLimitCommand(parseInt(userLimit) || 100))} className="h-8 px-3 text-xs bg-purple-500/80 hover:bg-purple-500 text-white border-0">Set</Button>
-                  <Button size="sm" onClick={() => runCmd(cmd22Fb, adminCmds.resetUserLimit)} className="h-8 px-3 text-xs bg-gray-500/80 hover:bg-gray-500 text-white border-0">Reset</Button>
-                </div>
-                <FeedbackBadge fb={cmd21Fb.feedback} />
-                <FeedbackBadge fb={cmd22Fb.feedback} />
-              </CommandCard>
-
-              {/* 23. Toggle Profanity Filter */}
-              <CommandCard icon={<Filter className="w-4 h-4 text-green-400" />} title="Toggle Profanity Filter" description="Enables or disables the profanity filter for all users.">
-                <Button onClick={() => runCmd(cmd23Fb, adminCmds.toggleProfanityFilter)} className="w-full h-8 text-xs bg-green-500/80 hover:bg-green-500 text-white border-0 gap-1.5">
-                  <Filter className="w-3.5 h-3.5" />Toggle Profanity Filter
-                </Button>
-                <FeedbackBadge fb={cmd23Fb.feedback} />
-              </CommandCard>
-
-              {/* 24. Impersonate Bot */}
-              <CommandCard icon={<Bot className="w-4 h-4 text-dc-accent" />} title="Impersonate Bot" description="Sends a message as G.AI 🤖 bot.">
-                <div className="flex gap-2">
-                  <Input value={botMessage} onChange={e => setBotMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && runCmd(cmd24Fb, () => adminCmds.impersonateBot(botMessage))} placeholder="Bot message..." className="flex-1 h-8 text-xs bg-dc-input border-white/10 text-white placeholder:text-dc-muted" />
-                  <Button size="sm" onClick={() => runCmd(cmd24Fb, () => adminCmds.impersonateBot(botMessage))} className="h-8 px-3 text-xs bg-dc-accent/80 hover:bg-dc-accent text-white border-0"><Bot className="w-3 h-3 mr-1" />Send</Button>
-                </div>
-                <FeedbackBadge fb={cmd24Fb.feedback} />
-              </CommandCard>
-
-              {/* 25. Export Chat Log */}
-              <CommandCard icon={<Download className="w-4 h-4 text-green-400" />} title="Export Chat Log" description="Downloads all chat messages as a JSON file.">
-                <Button onClick={() => runCmd(cmd25Fb, adminCmds.exportLog)} className="w-full h-8 text-xs bg-green-500/80 hover:bg-green-500 text-white border-0 gap-1.5">
-                  <Download className="w-3.5 h-3.5" />Download Chat Log
-                </Button>
-                <FeedbackBadge fb={cmd25Fb.feedback} />
-              </CommandCard>
-            </TabsContent>
-
-            {/* ── Bans Tab ── */}
-            <TabsContent value="bans" className="flex-1 overflow-y-auto mt-0 space-y-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-dc-muted font-semibold uppercase tracking-wide">Active Bans ({bans.length})</span>
-                <Button size="sm" variant="ghost" onClick={refresh} className="h-6 px-2 text-xs text-dc-muted hover:text-white">
-                  <RefreshCw className="w-3 h-3 mr-1" />Refresh
-                </Button>
-              </div>
-
-              {bans.length === 0 ? (
-                <div className="text-center py-8 text-dc-muted text-sm">No active bans.</div>
-              ) : (
-                bans.map(ban => (
-                  <div key={ban.username} className="bg-dc-bg/50 rounded-xl p-3 border border-red-500/10 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                      <Ban className="w-4 h-4 text-red-400" />
+                {/* Section: Visual Effects */}
+                <div>
+                  <p className="text-xs font-semibold text-dc-muted uppercase tracking-wider mb-2">✨ Visual Effects</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Button size="sm" className="w-full bg-gradient-to-r from-red-500 via-yellow-400 to-blue-500 text-white text-xs"
+                        onClick={() => handleInstant('rainbow', cmds.rainbowMode)}>
+                        🌈 Rainbow Mode
+                      </Button>
+                      <StatusMsg msg={instantStatus['rainbow'] ?? null} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-semibold truncate">{ban.username}</p>
-                      <p className="text-dc-muted text-xs">{formatTimeRemaining(ban.expiresAt)} remaining</p>
+                    <div>
+                      <Button size="sm" className="w-full bg-yellow-500 hover:bg-yellow-600 text-black text-xs"
+                        onClick={() => handleInstant('confetti', cmds.confettiBlast)}>
+                        🎉 Confetti Blast
+                      </Button>
+                      <StatusMsg msg={instantStatus['confetti'] ?? null} />
                     </div>
-                    <Button size="sm" onClick={() => handleUnban(ban.username)} className="h-7 px-2 text-xs bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/20">
-                      <UserCheck className="w-3 h-3 mr-1" />Unban
-                    </Button>
-                  </div>
-                ))
-              )}
-
-              <div className="flex items-center justify-between mt-4 mb-1">
-                <span className="text-xs text-dc-muted font-semibold uppercase tracking-wide">Active Mutes ({mutes.length})</span>
-              </div>
-
-              {mutes.length === 0 ? (
-                <div className="text-center py-4 text-dc-muted text-sm">No active mutes.</div>
-              ) : (
-                mutes.map(mute => (
-                  <div key={mute.username} className="bg-dc-bg/50 rounded-xl p-3 border border-orange-500/10 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
-                      <VolumeX className="w-4 h-4 text-orange-400" />
+                    <div>
+                      <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                        onClick={() => handleInstant('flip', cmds.flipChat)}>
+                        🙃 Flip Chat
+                      </Button>
+                      <StatusMsg msg={instantStatus['flip'] ?? null} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-semibold truncate">{mute.username}</p>
-                      <p className="text-dc-muted text-xs">{formatTimeRemaining(mute.expiresAt)} remaining</p>
+                    <div>
+                      <Button size="sm" className="w-full bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                        onClick={() => handleInstant('shake', cmds.shakeMessages)}>
+                        📳 Shake Messages
+                      </Button>
+                      <StatusMsg msg={instantStatus['shake'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                        onClick={() => handleInstant('bighead', cmds.bigHeadMode)}>
+                        🗿 Big Head Mode
+                      </Button>
+                      <StatusMsg msg={instantStatus['bighead'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-pink-600 hover:bg-pink-700 text-white text-xs"
+                        onClick={() => handleInstant('party', cmds.partyMode)}>
+                        🥳 Party Mode
+                      </Button>
+                      <StatusMsg msg={instantStatus['party'] ?? null} />
                     </div>
                   </div>
-                ))
-              )}
+                </div>
 
-              <div className="flex items-center justify-between mt-4 mb-1">
-                <span className="text-xs text-dc-muted font-semibold uppercase tracking-wide">Mod Log ({modLog.length})</span>
-                <Button size="sm" variant="ghost" onClick={handleClearLog} className="h-6 px-2 text-xs text-dc-muted hover:text-red-400">
-                  <Trash2 className="w-3 h-3 mr-1" />Clear
-                </Button>
-              </div>
+                <Separator className="bg-white/10" />
 
-              {modLog.length === 0 ? (
-                <div className="text-center py-4 text-dc-muted text-sm">No moderation events.</div>
-              ) : (
-                modLog.map(entry => (
-                  <div key={entry.id} className="bg-dc-bg/50 rounded-xl p-3 border border-white/5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-xs font-semibold">{entry.username}</p>
-                        <p className="text-dc-muted text-xs truncate">{entry.message}</p>
-                        <p className="text-red-400/70 text-xs mt-0.5">{entry.reason}</p>
+                {/* Section: Themes */}
+                <div>
+                  <p className="text-xs font-semibold text-dc-muted uppercase tracking-wider mb-2">🎨 Themes</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Button size="sm" className="w-full bg-green-500 hover:bg-green-600 text-black text-xs"
+                        onClick={() => handleInstant('neon', cmds.neonTheme)}>
+                        💚 Neon
+                      </Button>
+                      <StatusMsg msg={instantStatus['neon'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs"
+                        onClick={() => handleInstant('retro', cmds.retroTheme)}>
+                        📺 Retro
+                      </Button>
+                      <StatusMsg msg={instantStatus['retro'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-dc-accent hover:bg-dc-accent/80 text-white text-xs"
+                        onClick={() => handleInstant('resetTheme', cmds.resetTheme)}>
+                        🔄 Reset
+                      </Button>
+                      <StatusMsg msg={instantStatus['resetTheme'] ?? null} />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="bg-white/10" />
+
+                {/* Section: User Commands */}
+                <div>
+                  <p className="text-xs font-semibold text-dc-muted uppercase tracking-wider mb-2">👤 User Commands</p>
+                  <div className="space-y-3">
+
+                    {/* Ghost Mode */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">👻 Ghost Mode</p>
+                      <Input placeholder="Username" value={ghostUser} onChange={(e) => setGhostUser(e.target.value)}
+                        className="h-7 text-xs bg-dc-bg border-white/20 text-white" />
+                      <div className="flex gap-2">
+                        <Input placeholder="Minutes (default 5)" value={ghostDur} onChange={(e) => setGhostDur(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" type="number" min="1" />
+                        <Button size="sm" className="h-7 text-xs bg-gray-600 hover:bg-gray-700"
+                          onClick={() => {
+                            const err = cmds.ghostMode(ghostUser, parseInt(ghostDur) || 5);
+                            setGhostStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setGhostUser('');
+                          }}>Apply</Button>
                       </div>
-                      <span className="text-dc-muted text-[10px] shrink-0">{formatTimestamp(entry.timestamp)}</span>
+                      <StatusMsg msg={ghostStatus} />
+                    </div>
+
+                    {/* VIP Crown */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">👑 VIP Crown</p>
+                      <div className="flex gap-2">
+                        <Input placeholder="Give VIP to..." value={vipUser} onChange={(e) => setVipUser(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-yellow-500 hover:bg-yellow-600 text-black"
+                          onClick={() => {
+                            const err = cmds.giveVIP(vipUser);
+                            setVipStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setVipUser('');
+                          }}>Give</Button>
+                      </div>
+                      <StatusMsg msg={vipStatus} />
+                      <div className="flex gap-2">
+                        <Input placeholder="Remove VIP from..." value={removeVipUser} onChange={(e) => setRemoveVipUser(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-red-700 hover:bg-red-800"
+                          onClick={() => {
+                            const err = cmds.removeVIP(removeVipUser);
+                            setRemoveVipStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setRemoveVipUser('');
+                          }}>Remove</Button>
+                      </div>
+                      <StatusMsg msg={removeVipStatus} />
+                    </div>
+
+                    {/* Freeze User */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🧊 Freeze / Unfreeze</p>
+                      <div className="flex gap-2">
+                        <Input placeholder="Freeze username" value={freezeUserInput} onChange={(e) => setFreezeUserInput(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Input placeholder="Min" value={freezeDur} onChange={(e) => setFreezeDur(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white w-16" type="number" min="1" />
+                        <Button size="sm" className="h-7 text-xs bg-cyan-700 hover:bg-cyan-800"
+                          onClick={() => {
+                            const err = cmds.freezeUser(freezeUserInput, parseInt(freezeDur) || 5);
+                            setFreezeStatus(err ? { text: err, ok: false } : { text: '✅ Frozen!', ok: true });
+                            if (!err) setFreezeUserInput('');
+                          }}>Freeze</Button>
+                      </div>
+                      <StatusMsg msg={freezeStatus} />
+                      <div className="flex gap-2">
+                        <Input placeholder="Unfreeze username" value={unfreezeUserInput} onChange={(e) => setUnfreezeUserInput(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                          onClick={() => {
+                            const err = cmds.unfreezeUser(unfreezeUserInput);
+                            setUnfreezeStatus(err ? { text: err, ok: false } : { text: '✅ Unfrozen!', ok: true });
+                            if (!err) setUnfreezeUserInput('');
+                          }}>Unfreeze</Button>
+                      </div>
+                      <StatusMsg msg={unfreezeStatus} />
+                    </div>
+
+                    {/* Spotlight */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🔦 Spotlight User</p>
+                      <div className="flex gap-2">
+                        <Input placeholder="Username" value={spotlightUserInput} onChange={(e) => setSpotlightUserInput(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-yellow-600 hover:bg-yellow-700"
+                          onClick={() => {
+                            const err = cmds.spotlightUser(spotlightUserInput);
+                            setSpotlightStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setSpotlightUserInput('');
+                          }}>Spotlight</Button>
+                      </div>
+                      <StatusMsg msg={spotlightStatus} />
+                    </div>
+
+                    {/* Nickname */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🏷️ Random Nickname</p>
+                      <Input placeholder="Username" value={nickUser} onChange={(e) => setNickUser(e.target.value)}
+                        className="h-7 text-xs bg-dc-bg border-white/20 text-white" />
+                      <div className="flex gap-2">
+                        <Input placeholder="Nickname" value={nickName} onChange={(e) => setNickName(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700"
+                          onClick={() => {
+                            const err = cmds.randomNickname(nickUser, nickName);
+                            setNickStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) { setNickUser(''); setNickName(''); }
+                          }}>Set</Button>
+                      </div>
+                      <StatusMsg msg={nickStatus} />
+                      <div className="flex gap-2">
+                        <Input placeholder="Remove nickname from..." value={removeNickUser} onChange={(e) => setRemoveNickUser(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-red-700 hover:bg-red-800"
+                          onClick={() => {
+                            const err = cmds.removeNickname(removeNickUser);
+                            setRemoveNickStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setRemoveNickUser('');
+                          }}>Remove</Button>
+                      </div>
+                      <StatusMsg msg={removeNickStatus} />
+                    </div>
+
+                    {/* Avatar Color */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🎨 Avatar Color</p>
+                      <div className="flex gap-2">
+                        <Input placeholder="Username" value={avatarUser} onChange={(e) => setAvatarUser(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <input type="color" value={avatarColor} onChange={(e) => setAvatarColor(e.target.value)}
+                          className="h-7 w-10 rounded cursor-pointer border border-white/20 bg-transparent" />
+                        <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
+                          onClick={() => {
+                            const err = cmds.changeAvatarColor(avatarUser, avatarColor);
+                            setAvatarStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setAvatarUser('');
+                          }}>Set</Button>
+                      </div>
+                      <StatusMsg msg={avatarStatus} />
+                      <div className="flex gap-2">
+                        <Input placeholder="Reset color for..." value={resetAvatarUser} onChange={(e) => setResetAvatarUser(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-gray-600 hover:bg-gray-700"
+                          onClick={() => {
+                            const err = cmds.resetAvatarColor(resetAvatarUser);
+                            setResetAvatarStatus(err ? { text: err, ok: false } : { text: '✅ Done!', ok: true });
+                            if (!err) setResetAvatarUser('');
+                          }}>Reset</Button>
+                      </div>
+                      <StatusMsg msg={resetAvatarStatus} />
                     </div>
                   </div>
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+                </div>
+
+                <Separator className="bg-white/10" />
+
+                {/* Section: Fun Announcements */}
+                <div>
+                  <p className="text-xs font-semibold text-dc-muted uppercase tracking-wider mb-2">📣 Announcements</p>
+                  <div className="space-y-3">
+
+                    {/* Balloon Message */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🎈 Balloon Message</p>
+                      <div className="flex gap-2">
+                        <Input placeholder="Your message..." value={balloonText} onChange={(e) => setBalloonText(e.target.value)}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white flex-1" />
+                        <Button size="sm" className="h-7 text-xs bg-pink-500 hover:bg-pink-600"
+                          onClick={() => {
+                            const err = cmds.balloonMessage(balloonText);
+                            setBalloonStatus(err ? { text: err, ok: false } : { text: '✅ Sent!', ok: true });
+                            if (!err) setBalloonText('');
+                          }}>Send</Button>
+                      </div>
+                      <StatusMsg msg={balloonStatus} />
+                    </div>
+
+                    {/* Weather Announce */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🌤️ Weather Announce</p>
+                      <div className="flex gap-2">
+                        <select value={weatherPreset} onChange={(e) => setWeatherPreset(e.target.value)}
+                          className="flex-1 h-7 text-xs bg-dc-bg border border-white/20 text-white rounded px-2">
+                          <option value="sunny">☀️ Sunny</option>
+                          <option value="rainy">🌧️ Rainy</option>
+                          <option value="snowy">❄️ Snowy</option>
+                          <option value="stormy">⛈️ Stormy</option>
+                          <option value="cloudy">☁️ Cloudy</option>
+                          <option value="windy">💨 Windy</option>
+                          <option value="rainbow">🌈 Rainbow</option>
+                          <option value="foggy">🌫️ Foggy</option>
+                        </select>
+                        <Button size="sm" className="h-7 text-xs bg-sky-600 hover:bg-sky-700"
+                          onClick={() => {
+                            cmds.weatherAnnounce(weatherPreset);
+                            setWeatherStatus({ text: '✅ Announced!', ok: true });
+                          }}>Announce</Button>
+                      </div>
+                      <StatusMsg msg={weatherStatus} />
+                    </div>
+
+                    {/* Trivia */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">🧠 Trivia Question</p>
+                      <Input placeholder="Question..." value={triviaQ} onChange={(e) => setTriviaQ(e.target.value)}
+                        className="h-7 text-xs bg-dc-bg border-white/20 text-white" />
+                      {triviaOpts.map((opt, i) => (
+                        <Input key={i} placeholder={`Option ${['A', 'B', 'C', 'D'][i]}...`} value={opt}
+                          onChange={(e) => {
+                            const updated = [...triviaOpts];
+                            updated[i] = e.target.value;
+                            setTriviaOpts(updated);
+                          }}
+                          className="h-7 text-xs bg-dc-bg border-white/20 text-white" />
+                      ))}
+                      <Button size="sm" className="w-full h-7 text-xs bg-teal-600 hover:bg-teal-700"
+                        onClick={() => {
+                          const err = cmds.triviaQuestion(triviaQ, triviaOpts);
+                          setTriviaStatus(err ? { text: err, ok: false } : { text: '✅ Posted!', ok: true });
+                          if (!err) { setTriviaQ(''); setTriviaOpts(['', '', '', '']); }
+                        }}>Post Trivia</Button>
+                      <StatusMsg msg={triviaStatus} />
+                    </div>
+
+                    {/* Word of the Day */}
+                    <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-white">📖 Word of the Day</p>
+                      <Input placeholder="Word..." value={wotdWord} onChange={(e) => setWotdWord(e.target.value)}
+                        className="h-7 text-xs bg-dc-bg border-white/20 text-white" />
+                      <Textarea placeholder="Definition..." value={wotdDef} onChange={(e) => setWotdDef(e.target.value)}
+                        className="text-xs bg-dc-bg border-white/20 text-white resize-none h-16" />
+                      <Button size="sm" className="w-full h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => {
+                          const err = cmds.wordOfTheDay(wotdWord, wotdDef);
+                          setWotdStatus(err ? { text: err, ok: false } : { text: '✅ Posted!', ok: true });
+                          if (!err) { setWotdWord(''); setWotdDef(''); }
+                        }}>Post Word</Button>
+                      <StatusMsg msg={wotdStatus} />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="bg-white/10" />
+
+                {/* Section: Instant Fun */}
+                <div>
+                  <p className="text-xs font-semibold text-dc-muted uppercase tracking-wider mb-2">⚡ Instant Fun</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Button size="sm" className="w-full bg-violet-600 hover:bg-violet-700 text-white text-xs"
+                        onClick={() => handleInstant('summon', cmds.summonBot)}>
+                        🤖 Summon Bot
+                      </Button>
+                      <StatusMsg msg={instantStatus['summon'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs"
+                        onClick={() => handleInstant('birthday', cmds.serverBirthday)}>
+                        🎂 Server Birthday
+                      </Button>
+                      <StatusMsg msg={instantStatus['birthday'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-black text-xs"
+                        onClick={() => handleInstant('mystery', cmds.mysteryBox)}>
+                        🎁 Mystery Box
+                      </Button>
+                      <StatusMsg msg={instantStatus['mystery'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-slate-600 hover:bg-slate-700 text-white text-xs"
+                        onClick={() => handleInstant('typing', cmds.typingFlood)}>
+                        ⌨️ Typing Flood
+                      </Button>
+                      <StatusMsg msg={instantStatus['typing'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-blue-700 hover:bg-blue-800 text-white text-xs"
+                        onClick={() => {
+                          cmds.serverStats();
+                          setInstant('stats', '✅ Stats posted!', true);
+                        }}>
+                        📊 Server Stats
+                      </Button>
+                      <StatusMsg msg={instantStatus['stats'] ?? null} />
+                    </div>
+                    <div>
+                      <Button size="sm" className="w-full bg-dc-bg hover:bg-dc-bg/80 border border-white/20 text-white text-xs"
+                        onClick={() => {
+                          const count = cmds.countMessages();
+                          setMsgCount(count);
+                        }}>
+                        💬 Count Messages
+                      </Button>
+                      {msgCount !== null && (
+                        <p className="text-xs mt-1 text-green-400">💬 {msgCount} messages in cache</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="bg-white/10" />
+
+                {/* Clear Admin Log */}
+                <div>
+                  <p className="text-xs font-semibold text-dc-muted uppercase tracking-wider mb-2">🗑️ Maintenance</p>
+                  <Button size="sm" className="w-full bg-red-900 hover:bg-red-800 text-white text-xs"
+                    onClick={() => {
+                      cmds.clearAdminLog();
+                      setModLog([]);
+                      setLogStatus({ text: '✅ Admin log cleared!', ok: true });
+                    }}>
+                    🗑️ Clear Admin Log
+                  </Button>
+                  <StatusMsg msg={logStatus} />
+                </div>
+
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* BROADCAST TAB */}
+          <TabsContent value="broadcast" className="flex-1 overflow-hidden m-0">
+            <ScrollArea className="h-full px-6 pb-6">
+              <div className="space-y-4 pt-2">
+                {/* Big Message */}
+                <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-white">📢 Big Announcement</p>
+                  <Textarea
+                    placeholder="Type your announcement..."
+                    value={bigText}
+                    onChange={(e) => setBigText(e.target.value)}
+                    className="text-sm bg-dc-bg border-white/20 text-white resize-none h-20"
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+                    onClick={() => {
+                      if (!bigText.trim()) {
+                        setBigStatus({ text: 'Please enter a message', ok: false });
+                        return;
+                      }
+                      onAdminSend(bigText.trim(), true);
+                      setBigText('');
+                      setBigStatus({ text: '✅ Announcement sent!', ok: true });
+                    }}
+                  >
+                    📢 Send Announcement
+                  </Button>
+                  <StatusMsg msg={bigStatus} />
+                </div>
+
+                {/* Force Text */}
+                <div className="bg-dc-bg/40 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-white">👻 Force Text (as user)</p>
+                  <Input
+                    placeholder="Target username"
+                    value={forceTarget}
+                    onChange={(e) => setForceTarget(e.target.value)}
+                    className="h-8 text-sm bg-dc-bg border-white/20 text-white"
+                  />
+                  <Textarea
+                    placeholder="Message to force..."
+                    value={forceText}
+                    onChange={(e) => setForceText(e.target.value)}
+                    className="text-sm bg-dc-bg border-white/20 text-white resize-none h-16"
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    onClick={() => {
+                      if (!forceTarget.trim() || !forceText.trim()) {
+                        setForceStatus({ text: 'Please fill in both fields', ok: false });
+                        return;
+                      }
+                      const forcedMsg: ChatMessage = {
+                        id: `forced-${Date.now()}`,
+                        username: forceTarget.trim(),
+                        text: forceText.trim(),
+                        timestamp: Date.now(),
+                        isBigMessage: false,
+                        isForced: true,
+                        isBot: false,
+                        isSystem: false,
+                        isBroadcast: false,
+                      };
+                      sendMessage(forcedMsg);
+                      setForceTarget('');
+                      setForceText('');
+                      setForceStatus({ text: '✅ Force text sent!', ok: true });
+                    }}
+                  >
+                    👻 Force Send
+                  </Button>
+                  <StatusMsg msg={forceStatus} />
+                </div>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          {/* LOG TAB */}
+          <TabsContent value="log" className="flex-1 overflow-hidden m-0">
+            <ScrollArea className="h-full px-6 pb-6">
+              <div className="pt-2 space-y-2">
+                {modLog.length === 0 ? (
+                  <p className="text-dc-muted text-sm text-center py-8">No log entries</p>
+                ) : (
+                  modLog.map((entry, i) => (
+                    <div key={i} className="bg-dc-bg/40 rounded p-2 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-red-400 font-semibold">{entry.username}</span>
+                        <span className="text-dc-muted">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                      <p className="text-white/70">{entry.reason}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </SheetContent>
     </Sheet>
   );

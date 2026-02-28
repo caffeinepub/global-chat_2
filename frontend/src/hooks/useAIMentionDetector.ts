@@ -5,11 +5,9 @@ import { chatCompletion, getOpenAIKey } from '../lib/openai';
 const MENTION_PATTERN = /@G\.ai\s+(.+)/i;
 const BOT_USERNAME = 'G.AI 🤖';
 
-type SendMessageFn = (text: string, overrideUsername?: string, isBot?: boolean) => ChatMessage;
-
 export function useAIMentionDetector(
   messages: ChatMessage[],
-  sendMessage: SendMessageFn
+  sendMessage: (msg: ChatMessage) => void
 ) {
   const processedIds = useRef<Set<string>>(new Set());
   const isProcessing = useRef(false);
@@ -52,13 +50,31 @@ export function useAIMentionDetector(
         );
 
         const text = response || 'I could not generate a response right now.';
-        sendMessage(text, BOT_USERNAME, true);
+        const botMsg: ChatMessage = {
+          id: `bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          username: BOT_USERNAME,
+          text,
+          timestamp: Date.now(),
+          isBot: true,
+          isBigMessage: false,
+          isForced: false,
+          isSystem: false,
+          isBroadcast: false,
+        };
+        sendMessage(botMsg);
       } catch {
-        sendMessage(
-          'Sorry, I encountered an error processing your request. 😔',
-          BOT_USERNAME,
-          true
-        );
+        const errMsg: ChatMessage = {
+          id: `bot-err-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          username: BOT_USERNAME,
+          text: 'Sorry, I encountered an error processing your request. 😔',
+          timestamp: Date.now(),
+          isBot: true,
+          isBigMessage: false,
+          isForced: false,
+          isSystem: false,
+          isBroadcast: false,
+        };
+        sendMessage(errMsg);
       } finally {
         isProcessing.current = false;
       }

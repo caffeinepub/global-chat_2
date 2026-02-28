@@ -1,50 +1,80 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T11:00:29.399Z",
-  "summary": "The diff implements all three requirements (REQ-36, REQ-37, REQ-38) with mostly complete coverage. However, there are a few gaps: the backend stable var uses var (non-stable), the getMessages parameter type uses Time.Time (Int) instead of Nat as specified, and not all message creation points are shown to assign a unique id. The core functionality — backend message store, polling, BroadcastChannel preservation, deduplication, and id field — is present.",
+  "generatedAt": "2026-02-28T11:53:34.812Z",
+  "summary": "The diff implements the majority of the four requirements. REQ-42 (removing G.AI Chat button/panel from UI) is partially implemented — AIChatButton.tsx and AIChatPanel.tsx are listed as modified but their file summaries still describe original functionality. REQ-43 (30 new admin commands) is largely implemented via useFunCommands.ts and AdminPanel.tsx. REQ-44 (ChatArea/ChatPage fun state rendering) is implemented. REQ-45 (removing broken command references) is implemented. Several specific details appear missing or unverifiable due to diff truncation.",
   "missing_requirements": [
     {
-      "id": "REQ-36",
-      "requirement": "backend/main.mo defines a stable var for chat message storage",
-      "reason": "The diff shows 'var messages : [ChatMessage] = []' without the 'stable' keyword, meaning message history will not survive canister upgrades.",
+      "id": "REQ-42",
+      "requirement": "Delete or disable AIChatButton.tsx and AIChatPanel.tsx — no floating G.AI Chat button visible anywhere",
+      "reason": "AIChatButton.tsx and AIChatPanel.tsx appear in the modified list, and their file summaries still describe their original functionality (floating button, private panel). The files were not deleted. The requirement says to delete or disable them.",
       "evidence": [
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-36",
-      "requirement": "getMessages query accepts a since: Nat timestamp",
-      "reason": "The diff declares getMessages(since : Time.Time) where Time.Time is Int (nanoseconds), not Nat as specified in the requirement.",
-      "evidence": [
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-38",
-      "requirement": "Every message sent (user, bot, admin, system) has a unique non-empty id assigned at creation time",
-      "reason": "The diff does not show changes to message creation points (ChatPage, admin broadcast, force text, bot responses) to ensure a unique id is assigned at creation. The frontend-file-summaries.txt does not indicate these files were modified to add id generation.",
-      "evidence": [
-        "frontend/src/types/chat.ts",
+        "frontend/src/components/AIChatButton.tsx",
+        "frontend/src/components/AIChatPanel.tsx",
         "frontend-file-summaries.txt"
+      ]
+    },
+    {
+      "id": "REQ-43",
+      "requirement": "Neon Theme, Retro Theme, and Reset Theme must apply CSS theme classes to the root layout element based on globalchat_theme state",
+      "reason": "While tailwind.config.js defines neon/retro color tokens, there is no evidence in the diff of CSS theme classes being applied to a root layout element based on globalchat_theme changes. ChatPage.tsx does not show theme class toggling on a root element.",
+      "evidence": [
+        "frontend/tailwind.config.js",
+        "frontend/src/pages/ChatPage.tsx",
+        "frontend/src/index.css"
+      ]
+    },
+    {
+      "id": "REQ-44",
+      "requirement": "Neon/Retro/Reset Theme — apply the correct CSS theme class to the root layout when globalchat_theme changes",
+      "reason": "No evidence in ChatPage.tsx or any layout component of reading globalchat_theme from localStorage/BroadcastChannel and applying a theme CSS class to the root or body element at runtime.",
+      "evidence": [
+        "frontend/src/pages/ChatPage.tsx",
+        "frontend/src/index.css"
+      ]
+    },
+    {
+      "id": "REQ-45",
+      "requirement": "Remove ShutdownOverlay.tsx, StartupOverlay.tsx, and OwnerShutdownBanner.tsx components and all their imports",
+      "reason": "These components are not listed as removed files in the diff. ChatPage.tsx does not import them but the files may still exist in the project.",
+      "evidence": [
+        "frontend/src/pages/ChatPage.tsx"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "postMessage overwrites the incoming message's id with an auto-incremented integer id (nextId.toText()) instead of preserving the client-supplied id",
-      "reason": "The requirement states the id is generated on the frontend (UUID or timestamp+random string) and used for deduplication. The backend replacing it with a server-generated integer breaks the deduplication contract between BroadcastChannel and polling.",
+      "description": "Force text admin command with forceTarget and forceText inputs in AdminPanel",
+      "reason": "AdminPanel.tsx shows state variables forceTarget, forceText, and forceStatus implementing a send-as-user or force-text command. This was not listed among the 30 required admin commands in REQ-43.",
       "evidence": [
-        "backend/main.mo"
+        "frontend/src/components/AdminPanel.tsx"
       ]
     }
   ],
-  "confidence": 0.78,
+  "confidence": 0.63,
   "changed_files": [
-    "backend/main.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/hooks/useBroadcastMessages.ts",
-    "frontend/src/types/chat.ts",
+    "frontend/src/components/AIChatButton.tsx",
+    "frontend/src/components/AIChatPanel.tsx",
+    "frontend/src/components/AdminPanel.tsx",
+    "frontend/src/components/BirthdayOverlay.tsx",
+    "frontend/src/components/ChatArea.tsx",
+    "frontend/src/components/ConfettiBurst.tsx",
+    "frontend/src/components/MessageInputBar.tsx",
+    "frontend/src/components/Sidebar.tsx",
+    "frontend/src/components/TopBar.tsx",
+    "frontend/src/components/TypingIndicatorBar.tsx",
+    "frontend/src/hooks/useAdminCommands.ts",
+    "frontend/src/hooks/useBanManager.ts",
+    "frontend/src/hooks/useChatLock.ts",
+    "frontend/src/hooks/useChatModeration.ts",
+    "frontend/src/hooks/useFunCommands.ts",
+    "frontend/src/hooks/useMuteManager.ts",
+    "frontend/src/hooks/useServerState.ts",
+    "frontend/src/hooks/useSlowMode.ts",
+    "frontend/src/index.css",
+    "frontend/src/pages/ChatPage.tsx",
+    "frontend/tailwind.config.js",
     "project_state.json"
   ]
 }

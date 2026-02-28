@@ -1,77 +1,124 @@
 {
   "kind": "build_request",
-  "title": "Fix cross-device messaging: replace BroadcastChannel with backend-persisted messages",
+  "title": "Remove G.AI Chat Button & Replace Broken Admin Commands with 30 Fun New Commands",
   "projectName": "Global Chat",
-  "priority": "high",
+  "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-36",
-      "text": "Implement a backend-persisted message store in `backend/main.mo`. Add a stable array of chat messages (storing id, username, text, timestamp, and all existing ChatMessage fields: isBigMessage, isForced, isBot, isSystem, isBroadcast). Expose Motoko query and update functions: `getMessages(since: Nat) : async [ChatMessage]` to fetch messages newer than a given timestamp, and `postMessage(msg: ChatMessage) : async ()` to store a new message (cap the store at 500 most recent messages).",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-user-cross-device"
-        ],
-        "quotes": [
-          "after publishing i opened in my mobile and said something but in pc that message is not showing"
-        ]
-      },
-      "acceptanceCriteria": [
-        "backend/main.mo defines a stable var for chat message storage",
-        "getMessages query accepts a since timestamp and returns only messages newer than it",
-        "postMessage update function appends a message to stable storage",
-        "Message store is capped at 500 entries (oldest pruned first)",
-        "All fields of the ChatMessage interface (isBigMessage, isForced, isBot, isSystem, etc.) are represented in the Motoko record type"
-      ]
-    },
-    {
-      "id": "REQ-37",
-      "text": "Update `frontend/src/hooks/useBroadcastMessages.ts` to use the ICP backend as the primary message store. On mount and on a polling interval (every 2 seconds), call `getMessages(since)` on the backend actor to fetch new messages and merge them into local React state. When sending a message, call `postMessage` on the backend actor to persist it, in addition to (or instead of) writing to localStorage. Continue broadcasting via BroadcastChannel for same-browser tab sync as a secondary optimization, but the backend must be the source of truth for cross-device delivery.",
+      "id": "REQ-42",
+      "text": "Remove the floating 'G.AI Chat' button and the AIChatPanel entirely from the UI. Delete or disable `AIChatButton.tsx` and `AIChatPanel.tsx` from `ChatPage.tsx`. Remove all imports, state variables, and render logic related to the private AI chat panel. The @G.ai mention detection in global chat (useAIMentionDetector) must remain intact.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-cross-device"
+          "msg-6"
         ],
         "quotes": [
-          "after publishing i opened in my mobile and said something but in pc that message is not showing"
+          "remove the chat with bot button"
         ]
       },
       "acceptanceCriteria": [
-        "Messages posted from a mobile device appear on a PC browser within ~2 seconds",
-        "Messages posted on PC appear on mobile within ~2 seconds",
-        "Polling interval is approximately 2 seconds",
-        "Existing BroadcastChannel behavior is preserved for same-browser tab sync",
-        "No duplicate messages appear in the chat when both BroadcastChannel and polling deliver the same message (deduplicate by message id)",
-        "localStorage is still updated for offline/fallback display on reload"
+        "No floating G.AI Chat button is visible anywhere in the chat UI",
+        "No AI chat panel or modal opens from any button",
+        "@G.ai mentions in the global chat still trigger bot responses as before",
+        "No console errors related to missing AI chat panel components"
       ]
     },
     {
-      "id": "REQ-38",
-      "text": "Ensure the `ChatMessage` TypeScript interface in `frontend/src/types/chat.ts` has an `id` field (string, required) that is unique per message (e.g., a UUID or timestamp+random string). All message creation points (user sends, bot responses, admin broadcasts, force text, big messages, system messages) must generate and assign a unique `id` before persisting. This id is used for deduplication when polling from the backend.",
+      "id": "REQ-43",
+      "text": "Completely replace the existing admin commands in `AdminPanel.tsx` — removing all currently broken commands (mute, unmute, mass mute, mass unmute, server shutdown, start up server, ban, unban, slow mode, disable slow mode, lock chat, unlock chat, and any others that are non-functional) — and replace them with 30 new, fully-working fun and creative admin commands. Remove all associated broken hooks and localStorage logic for the removed commands. The 30 new commands must be: (1) **Rainbow Mode** — broadcast a CSS animation that makes all message text cycle through rainbow colors for 60 seconds, stored in `globalchat_rainbow_mode` with expiry; (2) **Confetti Blast** — broadcast a one-time confetti particle animation that plays on all tabs for 3 seconds; (3) **Flip Chat** — broadcast a CSS transform that flips the entire chat area upside-down for 30 seconds, stored in `globalchat_flip_mode`; (4) **Shake Messages** — broadcast a CSS shake animation applied to all messages for 10 seconds; (5) **Big Head Mode** — broadcast a flag that makes all avatar circles 3x larger for 60 seconds, stored in `globalchat_bighead`; (6) **Ghost Mode** — make a target user's messages display with 30% opacity and a 👻 icon for 5 minutes, stored in `globalchat_ghost_users`; (7) **VIP Crown** — award a 👑 crown badge next to a target username in all their messages and in the sidebar, stored in `globalchat_vip_users`; (8) **Remove VIP** — remove the VIP crown from a target username; (9) **Party Mode** — broadcast a background color cycling animation on the sidebar and topbar for 60 seconds; (10) **Freeze User** — prevent a specific username from sending messages for a configurable duration (default 5 minutes), stored in `globalchat_frozen`; (11) **Unfreeze User** — remove the freeze from a specific username; (12) **Balloon Message** — post a special message in the global chat with floating balloon emojis (🎈🎈🎈) surrounding the text, rendered with a festive pink background; (13) **Summon Bot** — force the bot `G.AI 🤖` to post a random fun fact or joke in the global chat without any user prompt; (14) **Weather Announce** — post a system message with a custom weather status (e.g., '⛈️ It is currently stormy in the server!') chosen from a preset dropdown; (15) **Change Avatar Color** — override the avatar circle color for a specific username with a chosen hex color, stored in `globalchat_avatar_colors`; (16) **Reset Avatar Color** — remove the avatar color override for a specific username; (17) **Neon Theme** — broadcast a neon/cyberpunk CSS theme override with bright green/pink accents on dark background, stored in `globalchat_theme` as 'neon'; (18) **Retro Theme** — broadcast a retro/80s CSS theme with orange and teal colors; (19) **Reset Theme** — broadcast a reset to the default Discord dark theme; (20) **Spotlight User** — post a system message celebrating a specific user (e.g., '🌟 Spotlight: [username] is the star of the server today!') with a golden banner style; (21) **Random Nickname** — assign a temporary funny nickname displayed in brackets after the username (e.g., 'Alex [The Brave]') for 10 minutes, stored in `globalchat_nicknames`; (22) **Remove Nickname** — remove the temporary nickname for a specific username; (23) **Server Birthday** — broadcast a full-screen birthday animation overlay with 🎂 emoji and 'Happy Birthday!' text that all non-owner users see for 5 seconds; (24) **Trivia Question** — post a multiple-choice trivia question as a bot message in the global chat, with options A/B/C/D listed; (25) **Count Messages** — display inline in the admin panel the total number of messages stored in `globalchat_messages` localStorage; (26) **Word of the Day** — post a system message with a 'Word of the Day' (admin enters word + definition), styled as a dictionary-style bot message; (27) **Mystery Box** — post a bot message with a random surprise emoji reveal (🎁→ random emoji drawn from a curated list of 50 fun emojis); (28) **Typing Indicator Flood** — simulate 3 fake usernames (randomly chosen from a preset list) appearing in a typing indicator for 5 seconds; (29) **Server Stats** — post a bot message in the global chat displaying live server stats: total messages stored, number of known users in `globalchat_users`, and current timestamp; (30) **Clear Admin Log** — wipe the moderation/admin action log stored in localStorage `globalchat_mod_log` and show inline confirmation.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-cross-device"
+          "msg-6"
+        ],
+        "quotes": [
+          "remove the admin commands mute server shut down ban mute mass mute most commands not working and give 30 more commands of your choice for super fun"
         ]
       },
       "acceptanceCriteria": [
-        "ChatMessage interface includes `id: string` as a required field",
-        "Every message sent (user, bot, admin, system) has a unique non-empty id assigned at creation time",
-        "Polling deduplication logic uses the id field to avoid showing the same message twice"
+        "All previously broken commands (mute, unmute, mass mute, mass unmute, ban, unban, server shutdown, start up server, slow mode, lock chat, unlock chat) are removed from the Admin Panel UI",
+        "No broken hook imports or calls remain for removed commands",
+        "The Admin Panel contains exactly 30 new fun commands, each with appropriate input fields where needed",
+        "Each command shows inline success or error feedback when triggered",
+        "Rainbow Mode causes message text to cycle through rainbow colors visibly for 60 seconds across all tabs",
+        "Confetti Blast shows a particle animation on all open tabs for ~3 seconds",
+        "Flip Chat inverts the chat area for 30 seconds across all tabs",
+        "VIP Crown badge (👑) appears next to the target username in their messages after the command",
+        "Ghost Mode renders the target user's messages at reduced opacity with a 👻 icon",
+        "Freeze User blocks message sending for the target username with an inline warning",
+        "Balloon Message appears with festive styling and balloon emojis in the global chat",
+        "Summon Bot posts a random fun fact or joke from G.AI 🤖 without user input",
+        "Neon/Retro theme overrides apply visually across the app when triggered",
+        "Random Nickname appends a bracketed nickname to the target username for 10 minutes",
+        "Server Birthday shows a full-screen birthday overlay for 5 seconds to non-owner users",
+        "Server Stats posts accurate counts of messages and users",
+        "Clear Admin Log wipes the mod log and shows confirmation",
+        "All 30 commands are only visible and accessible when logged in as AI.Caffeine"
+      ]
+    },
+    {
+      "id": "REQ-44",
+      "text": "Update `ChatArea.tsx` and `ChatPage.tsx` to read and apply the new fun admin state from localStorage/BroadcastChannel: (1) Rainbow Mode — apply a rainbow text animation CSS class to all message text when `globalchat_rainbow_mode` is active and not expired; (2) Flip Chat — apply a CSS `transform: rotate(180deg)` or `scaleY(-1)` to the chat area container when `globalchat_flip_mode` is active; (3) Big Head Mode — render avatar circles at 3x size when `globalchat_bighead` is active; (4) Ghost Mode — render messages from users in `globalchat_ghost_users` at 30% opacity with a 👻 prefix; (5) VIP Crown — render a 👑 badge next to usernames listed in `globalchat_vip_users` in messages and sidebar; (6) Random Nickname — display the nickname from `globalchat_nicknames` in brackets after the username if set and not expired; (7) Custom Avatar Color — use the color from `globalchat_avatar_colors` for the avatar circle if set; (8) Typing Indicator Flood — show a typing indicator bar with fake usernames for 5 seconds when triggered via BroadcastChannel; (9) Confetti Blast and Server Birthday — render a short overlay animation when the corresponding broadcast event is received; (10) Neon/Retro/Reset Theme — apply the correct CSS theme class to the root layout when `globalchat_theme` changes.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "give 30 more commands of your choice for super fun"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Rainbow text animation is visible on all messages when Rainbow Mode is active",
+        "Chat area appears flipped when Flip Chat is active",
+        "Avatars are visibly larger when Big Head Mode is active",
+        "Ghost Mode messages are visually distinct with reduced opacity and 👻 icon",
+        "VIP Crown 👑 badge is visible next to VIP usernames in the message list",
+        "Nicknames appear in brackets after usernames when set and not expired",
+        "Custom avatar colors override the default color for the specified user",
+        "Typing indicator appears briefly with fake names when Typing Indicator Flood is triggered",
+        "Confetti and Birthday animations render on non-owner tabs when broadcast",
+        "Theme changes (neon, retro, reset) apply immediately without page reload"
+      ]
+    },
+    {
+      "id": "REQ-45",
+      "text": "Remove all remaining references, imports, and UI elements in `ChatPage.tsx`, `TopBar.tsx`, `Sidebar.tsx`, and `MessageInputBar.tsx` that belong to the removed commands: server shutdown overlay (`ShutdownOverlay.tsx`, `StartupOverlay.tsx`, `OwnerShutdownBanner.tsx`), slow mode enforcement, mute enforcement, chat lock enforcement, and ban enforcement tied to the removed admin commands. Keep only: (1) the auto-ban from AI moderation (`useChatModeration`) which is still active, (2) the OpenAI API key prompt, (3) the @G.ai mention detector, and (4) the existing authentication/logout flow. Ensure the message sending flow in `MessageInputBar.tsx` only enforces the AI moderation ban (from `globalchat_bans`) and the new freeze command (from `globalchat_frozen`).",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "remove the admin commands mute server shut down ban mute mass mute most commands not working"
+        ]
+      },
+      "acceptanceCriteria": [
+        "No shutdown overlay, startup overlay, or owner shutdown banner renders anywhere in the app",
+        "No slow mode warning appears in MessageInputBar",
+        "No mute warning appears in MessageInputBar (only auto-moderation ban warning remains)",
+        "No chat lock warning appears in MessageInputBar",
+        "Freeze command warning ('You are frozen for X minutes') appears correctly when applicable",
+        "Auto-moderation ban warning from OpenAI moderation still works correctly",
+        "No console errors from missing or unused component imports"
       ]
     }
   ],
   "constraints": [
-    "Do not modify any file under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
-    "All Motoko logic must remain in backend/main.mo as a single actor",
-    "BroadcastChannel + localStorage behavior must be preserved as a secondary same-browser sync layer — do not remove it",
-    "Polling interval must not be lower than 1 second to avoid excessive canister calls"
+    "The @G.ai mention detection in global chat (useAIMentionDetector.ts) must NOT be removed — only the private G.AI Chat floating button and panel are removed",
+    "The AI.Caffeine owner account, verified badge, and admin panel access control must remain intact",
+    "The ICP backend polling for cross-device messages (useBroadcastMessages.ts) must not be broken",
+    "All new admin commands must be exclusively accessible to the AI.Caffeine session",
+    "New fun state (rainbow, flip, VIP, etc.) must be broadcast via the existing BroadcastChannel infrastructure so all open tabs update in real-time"
   ],
   "nonGoals": [
-    "WebSockets or real-time push from backend to frontend",
-    "Changing the visual design or layout of the chat UI",
-    "Modifying authentication or admin panel logic",
-    "Migrating existing localStorage message history to the backend on first load"
+    "Re-implementing server shutdown/startup functionality",
+    "Re-implementing mute/unmute admin commands",
+    "Re-implementing slow mode admin commands",
+    "Re-implementing manual ban/unban admin commands",
+    "Replacing or modifying the OpenAI auto-moderation system",
+    "Changing the authentication flow",
+    "Modifying the backend Motoko canister"
   ],
   "imageRequirements": {
     "required": [],

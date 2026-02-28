@@ -1,230 +1,225 @@
-import { useEffect, useRef } from 'react';
-import { ChatMessage } from '../types/chat';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import type { ChatMessage } from '../types/chat';
 import { isVerifiedOwner, VerifiedOwnerBadge } from '../lib/userBadges';
-import { usePinnedMessages } from '../hooks/usePinnedMessages';
-import { useHighlights } from '../hooks/useHighlights';
-import { useMOTD } from '../hooks/useMOTD';
-import PinnedMessageBar from './PinnedMessageBar';
-import MOTDBanner from './MOTDBanner';
 
-interface ChatAreaProps {
+interface Props {
   messages: ChatMessage[];
-  currentUsername?: string;
+  currentUsername: string;
 }
 
-const AVATAR_COLORS = [
-  '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
-  '#3ba55c', '#faa61a', '#00b0f4', '#9b59b6', '#e67e22',
-];
+interface FunState {
+  rainbowActive: boolean;
+  flipActive: boolean;
+  bigheadActive: boolean;
+  shakeActive: boolean;
+  ghostUsers: Record<string, number>;
+  vipUsers: string[];
+  nicknames: Record<string, { nick: string; expiry: number }>;
+  avatarColors: Record<string, string>;
+}
 
-function getAvatarColor(name: string): string {
+function getAvatarColor(username: string, customColors: Record<string, string>): string {
+  if (customColors[username]) return customColors[username];
+  const colors = [
+    '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
+    '#3ba55d', '#faa61a', '#00b0f4', '#9b59b6', '#e67e22',
+  ];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+  for (let i = 0; i < username.length; i++) hash = username.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (isToday) return `Today at ${time}`;
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ` at ${time}`;
+function checkExpiry(expiry: number): boolean {
+  return Date.now() < expiry;
 }
 
-function renderMessageText(text: string) {
-  const parts = text.split(/(@G\.ai)/gi);
-  return parts.map((part, i) =>
-    /^@G\.ai$/i.test(part)
-      ? <span key={i} className="text-dc-accent font-semibold">{part}</span>
-      : <span key={i}>{part}</span>
-  );
-}
+function loadFunState(): FunState {
+  const now = Date.now();
 
-export default function ChatArea({ messages, currentUsername }: ChatAreaProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const prevLengthRef = useRef(0);
-  const isAdmin = currentUsername === 'AI.Caffeine';
-
-  const { pinnedMessageId } = usePinnedMessages();
-  const { isUserHighlighted } = useHighlights();
-  const { motdMessage, dismissMOTD } = useMOTD();
-
-  useEffect(() => {
-    if (messages.length > prevLengthRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Rainbow
+  let rainbowActive = false;
+  try {
+    const raw = localStorage.getItem('globalchat_rainbow_mode');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      rainbowActive = parsed.expiry > now;
     }
-    prevLengthRef.current = messages.length;
-  }, [messages.length]);
+  } catch { /* ignore */ }
 
-  const groupedMessages = messages.reduce<Array<ChatMessage & { isGrouped: boolean }>>((acc, msg, i) => {
-    const prev = messages[i - 1];
-    const isGrouped = !!(
-      prev &&
-      prev.username === msg.username &&
-      msg.timestamp - prev.timestamp < 5 * 60 * 1000 &&
-      !msg.isBot &&
-      !prev.isBot &&
-      !msg.isBigMessage &&
-      !prev.isBigMessage
-    );
-    acc.push({ ...msg, isGrouped });
-    return acc;
+  // Flip
+  let flipActive = false;
+  try {
+    const raw = localStorage.getItem('globalchat_flip_mode');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      flipActive = parsed.expiry > now;
+    }
+  } catch { /* ignore */ }
+
+  // Bighead
+  let bigheadActive = false;
+  try {
+    const raw = localStorage.getItem('globalchat_bighead');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      bigheadActive = parsed.expiry > now;
+    }
+  } catch { /* ignore */ }
+
+  // Shake
+  let shakeActive = false;
+  try {
+    const raw = localStorage.getItem('globalchat_shake_mode');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      shakeActive = parsed.expiry > now;
+    }
+  } catch { /* ignore */ }
+
+  // Ghost users
+  let ghostUsers: Record<string, number> = {};
+  try {
+    const raw = localStorage.getItem('globalchat_ghost_users');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Filter expired
+      Object.entries(parsed).forEach(([u, exp]) => {
+        if ((exp as number) > now) ghostUsers[u] = exp as number;
+      });
+    }
+  } catch { /* ignore */ }
+
+  // VIP users
+  let vipUsers: string[] = [];
+  try {
+    const raw = localStorage.getItem('globalchat_vip_users');
+    if (raw) vipUsers = JSON.parse(raw);
+  } catch { /* ignore */ }
+
+  // Nicknames
+  let nicknames: Record<string, { nick: string; expiry: number }> = {};
+  try {
+    const raw = localStorage.getItem('globalchat_nicknames');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      Object.entries(parsed).forEach(([u, data]) => {
+        const d = data as { nick: string; expiry: number };
+        if (d.expiry > now) nicknames[u] = d;
+      });
+    }
+  } catch { /* ignore */ }
+
+  // Avatar colors
+  let avatarColors: Record<string, string> = {};
+  try {
+    const raw = localStorage.getItem('globalchat_avatar_colors');
+    if (raw) avatarColors = JSON.parse(raw);
+  } catch { /* ignore */ }
+
+  return { rainbowActive, flipActive, bigheadActive, shakeActive, ghostUsers, vipUsers, nicknames, avatarColors };
+}
+
+export default function ChatArea({ messages, currentUsername }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [funState, setFunState] = useState<FunState>(loadFunState);
+
+  const refreshFunState = useCallback(() => {
+    setFunState(loadFunState());
   }, []);
 
+  useEffect(() => {
+    const ch = new BroadcastChannel('globalchat_server_control');
+    ch.onmessage = () => refreshFunState();
+    return () => ch.close();
+  }, [refreshFunState]);
+
+  // Poll for expiry every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(refreshFunState, 5000);
+    return () => clearInterval(interval);
+  }, [refreshFunState]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const { rainbowActive, flipActive, bigheadActive, shakeActive, ghostUsers, vipUsers, nicknames, avatarColors } = funState;
+
+  const avatarSize = bigheadActive ? 'w-12 h-12 text-base' : 'w-8 h-8 text-xs';
+
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* MOTD Banner */}
-      {motdMessage && (
-        <MOTDBanner message={motdMessage} onDismiss={dismissMOTD} />
-      )}
+    <div
+      className={`flex-1 overflow-y-auto px-4 py-4 space-y-1 scrollbar-thin scrollbar-thumb-dc-sidebar scrollbar-track-transparent ${shakeActive ? 'animate-shake-messages' : ''}`}
+      style={flipActive ? { transform: 'scaleY(-1)' } : undefined}
+    >
+      {messages.map((msg) => {
+        const isOwn = msg.username === currentUsername;
+        const isGhost = !!ghostUsers[msg.username] && checkExpiry(ghostUsers[msg.username]);
+        const isVIP = vipUsers.includes(msg.username);
+        const nickname = nicknames[msg.username];
+        const avatarColor = getAvatarColor(msg.username, avatarColors);
+        const isOwner = isVerifiedOwner(msg.username);
 
-      {/* Pinned Message Bar */}
-      {pinnedMessageId && (
-        <PinnedMessageBar messageId={pinnedMessageId} messages={messages} />
-      )}
-
-      {/* Messages */}
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-0.5 scroll-smooth"
-        style={{ scrollbarWidth: 'thin', scrollbarColor: '#1e1f22 transparent' }}
-      >
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-16">
-            <div className="w-16 h-16 bg-dc-sidebar rounded-full flex items-center justify-center mb-4">
-              <span className="text-3xl">💬</span>
-            </div>
-            <h3 className="text-white font-semibold text-lg mb-1">Welcome to #global!</h3>
-            <p className="text-dc-muted text-sm">This is the beginning of the global chat.</p>
-          </div>
-        )}
-
-        {groupedMessages.map((msg) => {
-          // Big Message: full-width banner
-          if (msg.isBigMessage) {
-            return (
-              <div
-                key={msg.id}
-                className="w-full my-3 rounded-xl overflow-hidden border border-yellow-400/30 shadow-lg shadow-yellow-500/10 message-slide-in"
-              >
-                <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/15 to-yellow-500/20 px-5 py-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-3xl shrink-0 mt-0.5">📢</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="font-bold text-sm text-yellow-300">{msg.username}</span>
-                        {isVerifiedOwner(msg.username) && <VerifiedOwnerBadge />}
-                        <span className="text-[10px] bg-yellow-500/30 text-yellow-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border border-yellow-400/30">
-                          SERVER ANNOUNCEMENT
-                        </span>
-                        <span className="text-xs text-yellow-200/50">{formatTime(msg.timestamp)}</span>
-                      </div>
-                      <p className="text-white font-bold text-lg leading-snug break-words">{msg.text}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          // Check highlight
-          const highlightColor = isUserHighlighted(msg.username);
-
-          // Normal message
+        // Big message / announcement
+        if (msg.isBigMessage) {
           return (
             <div
               key={msg.id}
-              className={`
-                group flex gap-3 px-2 py-0.5 rounded-md transition-colors duration-100
-                hover:bg-white/[0.03]
-                ${msg.isBot ? 'bg-dc-accent/5 border-l-2 border-dc-accent/40 pl-3 my-1' : ''}
-                ${isVerifiedOwner(msg.username) ? 'bg-yellow-500/5 border-l-2 border-yellow-500/30 pl-3 my-0.5' : ''}
-                ${msg.isGrouped ? 'mt-0' : 'mt-3'}
-                message-slide-in
-              `}
-              style={highlightColor ? {
-                boxShadow: `0 0 0 1px ${highlightColor}40, 0 0 12px ${highlightColor}20`,
-                borderLeft: `2px solid ${highlightColor}`,
-                paddingLeft: '12px',
-              } : undefined}
+              className="my-3 px-4 py-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 font-semibold text-sm flex items-start gap-2"
+              style={flipActive ? { transform: 'scaleY(-1)' } : undefined}
             >
-              {/* Avatar or spacer */}
-              {!msg.isGrouped ? (
-                <div className="shrink-0 mt-0.5">
-                  {msg.isBot ? (
-                    <div className="w-9 h-9 rounded-full bg-dc-accent flex items-center justify-center text-white text-base shadow-md shadow-dc-accent/30">
-                      🤖
-                    </div>
-                  ) : isVerifiedOwner(msg.username) ? (
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-md ring-2 ring-yellow-400/50"
-                      style={{ backgroundColor: getAvatarColor(msg.username) }}
-                    >
-                      {msg.username[0]?.toUpperCase()}
-                    </div>
-                  ) : (
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
-                      style={{ backgroundColor: getAvatarColor(msg.username) }}
-                    >
-                      {msg.username[0]?.toUpperCase()}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-9 shrink-0 flex items-center justify-center">
-                  <span className="text-[10px] text-dc-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              )}
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                {!msg.isGrouped && (
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <span className={`font-semibold text-sm ${msg.isBot ? 'text-dc-accent' : isVerifiedOwner(msg.username) ? 'text-yellow-300' : 'text-white'}`}>
-                      {msg.username}
-                    </span>
-                    {msg.isBot && (
-                      <span className="text-[10px] bg-dc-accent text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">
-                        BOT
-                      </span>
-                    )}
-                    {isVerifiedOwner(msg.username) && <VerifiedOwnerBadge />}
-                    {msg.isForced && isAdmin && (
-                      <span
-                        title="Force-sent by AI.Caffeine"
-                        className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold border border-purple-500/30 flex items-center gap-0.5"
-                      >
-                        👻 FORCED
-                      </span>
-                    )}
-                    {highlightColor && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded font-bold border"
-                        style={{ color: highlightColor, borderColor: `${highlightColor}40`, backgroundColor: `${highlightColor}15` }}
-                      >
-                        ✨ HIGHLIGHTED
-                      </span>
-                    )}
-                    <span className="text-xs text-dc-muted">{formatTime(msg.timestamp)}</span>
-                  </div>
-                )}
-                <p className="text-dc-text text-sm leading-relaxed break-words">
-                  {renderMessageText(msg.text)}
-                </p>
-              </div>
+              <span className="text-lg shrink-0">📢</span>
+              <span className={rainbowActive ? 'animate-rainbow-text' : ''}>{msg.text}</span>
             </div>
           );
-        })}
+        }
 
-        <div ref={bottomRef} />
-      </div>
+        return (
+          <div
+            key={msg.id}
+            className={`flex items-start gap-3 px-2 py-1 rounded hover:bg-white/5 group transition-colors ${isGhost ? 'opacity-30' : ''}`}
+            style={flipActive ? { transform: 'scaleY(-1)' } : undefined}
+          >
+            {/* Avatar */}
+            <div
+              className={`${avatarSize} rounded-full flex items-center justify-center font-bold text-white shrink-0 transition-all`}
+              style={{ backgroundColor: avatarColor }}
+            >
+              {isGhost ? '👻' : msg.username.charAt(0).toUpperCase()}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span
+                  className={`font-semibold text-sm ${isOwner ? 'text-yellow-400' : 'text-white/90'}`}
+                >
+                  {isGhost && '👻 '}
+                  {msg.username}
+                  {nickname && ` [${nickname.nick}]`}
+                </span>
+                {isOwner && <VerifiedOwnerBadge />}
+                {isVIP && <span className="text-yellow-400 text-xs" title="VIP">👑</span>}
+                {msg.isForced && currentUsername === 'AI.Caffeine' && (
+                  <span className="text-xs bg-purple-500/20 text-purple-300 px-1 rounded">👻 FORCED</span>
+                )}
+                <span className="text-xs text-dc-muted ml-1">
+                  {new Date(Number(msg.timestamp) / 1_000_000).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <p
+                className={`text-sm text-white/80 break-words whitespace-pre-wrap mt-0.5 ${rainbowActive ? 'animate-rainbow-text' : ''}`}
+              >
+                {msg.text}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+      <div ref={bottomRef} />
     </div>
   );
 }
